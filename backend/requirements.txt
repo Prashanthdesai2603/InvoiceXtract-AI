@@ -1,0 +1,17 @@
+fastapi #used for building the API and handling HTTP requests and responses 
+uvicorn # used for running the API and server 
+python-multipart # used for handling file uploads and form data and other request data 
+sqlalchemy # used for database and ORM 
+mysql-connector-python #used for connecting to the MySQL database and other database operations 
+google-cloud-vision #used for image analysis and text extraction from images 
+google-generativeai>=0.8.0 #used for AI and machine learning operations and text generation 
+python-docx #used for working with Word documents and creating new documents 
+pandas #used for data manipulation and analysis and data structures 
+openpyxl #used for working with Excel files and other spreadsheet operations 
+python-dotenv #used for managing environment variables and loading environment variables from a .env file 
+pymupdf #used for working with PDF files and other PDF operations and text extraction from PDF files 
+pydantic #used for data validation and data structures and type hints 
+pydantic[email] #used for email validation and data structures and email validation 
+PyJWT #used for working with JSON Web Tokens and authentication and JWT operations 
+bcrypt #used for password hashing and authentication and password hashing 
+requests #used for making HTTP requests and other HTTP operations 

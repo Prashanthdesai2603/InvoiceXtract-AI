@@ -1,0 +1,152 @@
+:root {
+  --primary-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.2);
+}
+
+[data-bs-theme='dark'] {
+  --glass-bg: rgba(33, 37, 41, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  background-color: #121212;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f8fafc;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.App {
+  min-height: 100vh;
+}
+
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+}
+
+.btn-primary {
+  background: var(--primary-gradient);
+  border: none;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  filter: brightness(1.1);
+}
+
+.nav-link {
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.navbar-brand {
+  letter-spacing: -0.5px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease forwards;
+}
+
+/* Custom Dropzone styles */
+.dropzone {
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 40px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: rgba(255, 255, 255, 0.5);
+}
+
+.dropzone:hover, .dropzone-active {
+  border-color: #6366f1;
+  background-color: rgba(99, 102, 241, 0.05);
+}
+
+[data-bs-theme='dark'] .dropzone {
+  border-color: #475569;
+  background-color: rgba(30, 41, 59, 0.5);
+}
+
+/* Status colors */
+.status-processed { color: #10b981; }
+.status-pending { color: #f59e0b; }
+.status-failed { color: #ef4444; }
+
+/* Dashboard Cards */
+.stat-card {
+  transition: all 0.2s ease;
+  border: 1px solid var(--glass-border);
+}
+.stat-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+}
+
+/* Input Styles */
+.input-group-text {
+  border-color: rgba(0,0,0,0.05);
+}
+.form-control:focus {
+  box-shadow: 0 0 0 0.25rem rgba(99, 102, 241, 0.1);
+  border-color: #6366f1;
+}
+
+/* Button Loading */
+.btn:disabled {
+  opacity: 0.8;
+  cursor: not-allowed;
+}
+
+/* Animations */
+.auth-card {
+  animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Floating labels effect for icons */
+.input-group:focus-within .input-group-text {
+  color: #6366f1 !important;
+  background-color: #fff !important;
+}
+
+[data-bs-theme='dark'] .input-group:focus-within .input-group-text {
+  background-color: #212529 !important;
+}
+
+/* Transitions */
+.transition-all {
+  transition: all 0.3s ease;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
