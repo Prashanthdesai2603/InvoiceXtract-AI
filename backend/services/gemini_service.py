@@ -45,7 +45,8 @@ EXTRACTION TARGETS:
 2. invoice_date    → Invoice Date, Billing Date, Order Date (format: YYYY-MM-DD)
 3. vendor_name     → Seller, Supplier, Sold By, Company Name
 4. total_amount    → Grand Total = SUM of ALL breakdown amounts
-5. breakdown       → Array of ALL financial sections found
+5. document_type   → Classify as "sales" (if you are the SELLER) or "purchase" (if you are the BUYER/RECEIVER). Default to "sales" if unclear.
+6. breakdown       → Array of ALL financial sections found
 
 ---
 
@@ -78,6 +79,7 @@ STRICT OUTPUT FORMAT (return ONLY this JSON, no extra text):
   "invoice_date": "YYYY-MM-DD",
   "vendor_name": "...",
   "total_amount": 0.00,
+  "document_type": "sales",
   "breakdown": [
     {
       "type": "SUPPLY",
@@ -143,6 +145,10 @@ RULES:
                             extracted_data["total_amount"] = float(str(amt).replace(",", ""))
                         except (ValueError, TypeError):
                             extracted_data["total_amount"] = 0.0
+
+                    # -- document_type --
+                    doc_type = str(data.get("document_type", "sales")).lower()
+                    extracted_data["document_type"] = "purchase" if "purchase" in doc_type or "bill" in doc_type else "sales"
 
                     # -- breakdown array --
                     breakdown_raw = data.get("breakdown")
@@ -379,5 +385,6 @@ RULES:
             "date": None,
             "vendor_name": None,
             "total_amount": 0.0,
+            "document_type": "sales",
             "breakdown": []
         }

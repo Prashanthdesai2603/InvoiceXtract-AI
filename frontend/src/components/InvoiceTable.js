@@ -53,8 +53,11 @@ const InvoiceTable = () => {
             const res = await getInvoices();
             setInvoices(res.data);
         } catch (err) {
-            console.error(err);
-            toast.error("Failed to load history.");
+            // Only log and show toast if it's NOT a 401 (which is handled globally)
+            if (err.response?.status !== 401) {
+                console.error(err);
+                toast.error("Failed to load history.");
+            }
         } finally {
             setLoading(false);
         }
@@ -370,6 +373,7 @@ const InvoiceTable = () => {
                                     />
                                 </th>
                                 <th className="py-3 border-0">Sl. No.</th>
+                                <th className="py-3 border-0">Type</th>
                                 <th className="py-3 border-0 cursor-pointer" onClick={() => handleSort('invoice_number')}>
                                     <div className="d-flex align-items-center">
                                         Invoice # <ArrowUpDown size={14} className="ms-1 opacity-50" />
@@ -412,6 +416,11 @@ const InvoiceTable = () => {
                                             />
                                         </td>
                                         <td className="text-muted small">{slNo}</td>
+                                        <td>
+                                            <span className={`badge ${inv.document_type === 'purchase' ? 'bg-info' : 'bg-primary'} bg-opacity-10 ${inv.document_type === 'purchase' ? 'text-info' : 'text-primary'} border ${inv.document_type === 'purchase' ? 'border-info' : 'border-primary'} border-opacity-25`} style={{ fontSize: '0.65rem', textTransform: 'uppercase' }}>
+                                                {inv.document_type || 'sales'}
+                                            </span>
+                                        </td>
                                         <td className="fw-medium">{inv.invoice_number || '---'}</td>
                                         <td>{inv.vendor_name || '---'}</td>
                                         <td className="text-muted">{formatDate(inv.date)}</td>
@@ -448,7 +457,7 @@ const InvoiceTable = () => {
 
                                                 {inv.zoho_invoice_id && (
                                                     <a
-                                                        href={`https://books.zoho.in/app#/invoices/${inv.zoho_invoice_id}`}
+                                                        href={`https://books.zoho.in/app#/${inv.document_type === 'purchase' ? 'bills' : 'invoices'}/${inv.zoho_invoice_id}`}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         className="text-primary d-flex align-items-center text-decoration-none small"
@@ -502,7 +511,7 @@ const InvoiceTable = () => {
                             })}
                             {paginatedInvoices.length === 0 && (
                                 <tr>
-                                    <td colSpan="9" className="text-center py-5">
+                                    <td colSpan="10" className="text-center py-5">
                                         <div className="text-muted py-4">
                                             <p className="fs-4 mb-0">No matching invoices found</p>
                                             <p className="small">Try adjusting your filters or search terms</p>

@@ -1,1 +1,23 @@
+# Environment variables
 .env
+.env.example
+
+# Backend
+backend/__pycache__/
+backend/*.pyc
+backend/venv/
+
+# Frontend
+frontend/node_modules/
+frontend/build/
+frontend/.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Logs
+*.log
+
+# Service Account
+*.json

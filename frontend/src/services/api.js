@@ -20,6 +20,24 @@ api.interceptors.request.use(
     }
 );
 
+// Add a response interceptor to handle unauthorized errors
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response && error.response.status === 401) {
+            // Token is invalid or expired
+            localStorage.removeItem('token');
+            localStorage.removeItem('userData');
+            
+            // Redirect to login if not already there
+            if (window.location.pathname !== '/' && window.location.pathname !== '/signup') {
+                window.location.href = '/';
+            }
+        }
+        return Promise.reject(error);
+    }
+);
+
 /**
  * Upload one or multiple invoices
  */

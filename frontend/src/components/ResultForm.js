@@ -139,12 +139,12 @@ const ResultForm = ({ initialData, onSave, onDelete, saving }) => {
                         }}>
                             <CheckCircle size={18} className="me-2" />
                             <div className="flex-grow-1">
-                                <span className="fw-bold">Synced to Zoho Books!</span>
+                                <span className="fw-bold">Synced to Zoho Books as {formData.document_type === 'purchase' ? 'Bill' : 'Invoice'}!</span>
                                 <span className="ms-2 small opacity-75">ID: {formData.zoho_invoice_id}</span>
                             </div>
                             {formData.zoho_invoice_id && (
                                 <a 
-                                    href={`https://books.zoho.in/app#/invoices/${formData.zoho_invoice_id}`} 
+                                    href={`https://books.zoho.in/app#/${formData.document_type === 'purchase' ? 'bills' : 'invoices'}/${formData.zoho_invoice_id}`} 
                                     target="_blank" 
                                     rel="noopener noreferrer" 
                                     className="btn btn-sm btn-link text-decoration-none p-0 d-flex align-items-center fw-bold"
@@ -187,6 +187,25 @@ const ResultForm = ({ initialData, onSave, onDelete, saving }) => {
 
                 <form onSubmit={handleSubmit} noValidate>
                     <div className="row g-4">
+                        {/* Document Type */}
+                        <div className="col-12">
+                            <label className="form-label fw-semibold small text-uppercase mb-1">Document Type</label>
+                            <select
+                                name="document_type"
+                                className={getInputClass('document_type')}
+                                value={formData.document_type || 'sales'}
+                                onChange={handleChange}
+                                onBlur={handleBlur}
+                            >
+                                <option value="sales">Sales Invoice (Customer)</option>
+                                <option value="purchase">Purchase Bill (Vendor)</option>
+                            </select>
+                            <div className="text-muted small mt-1">
+                                {formData.document_type === 'purchase' 
+                                    ? "This will be synced as a 'Bill' in Zoho Books." 
+                                    : "This will be synced as an 'Invoice' in Zoho Books."}
+                            </div>
+                        </div>
 
                         {/* Vendor Name */}
                         <div className="col-12">

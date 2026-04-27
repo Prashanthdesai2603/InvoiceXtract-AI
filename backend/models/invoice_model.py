@@ -18,6 +18,7 @@ class Invoice(Base):
     zoho_status = Column(String(50), default="pending")
     zoho_invoice_id = Column(String(100), nullable=True)
     zoho_message = Column(String(500), nullable=True)
+    document_type = Column(String(50), default="sales") # sales or purchase
 
     created_at = Column(DateTime, server_default=func.now())
 

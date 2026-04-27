@@ -13,7 +13,7 @@ from models.user_model import User
 
 
 # ✅ NEW: Zoho import
-from services.zoho_service import create_invoice, update_zoho_invoice
+from services.zoho_service import create_invoice, update_zoho_invoice, create_bill, update_zoho_bill
 
 import os
 import pandas as pd
@@ -78,8 +78,9 @@ async def upload_invoices(
             # 3. Validation & Warnings
             warnings = ValidationService.validate(extracted_data)
             normalized_data = ValidationService.normalize_data(extracted_data)
+            doc_type = extracted_data.get("document_type", "sales")
 
-            print("DEBUG: Normalized Data:", normalized_data)
+            print(f"DEBUG: Normalized Data (Type: {doc_type}):", normalized_data)
 
             # Prevent saving if all key fields are empty
             is_empty = not any([
@@ -96,20 +97,26 @@ async def upload_invoices(
                 })
                 continue
 
-            # ✅ NEW: Send to Zoho
+            # ✅ NEW: Send to Zoho based on type
             zoho_response = None
             zoho_status = "pending"
             zoho_invoice_id = None
-            zoho_message = "Pending sync to Zoho"
+            zoho_message = f"Pending sync to Zoho ({doc_type})"
 
             try:
-                zoho_response = create_invoice(normalized_data)
+                if doc_type == "purchase":
+                    zoho_response = create_bill(normalized_data)
+                else:
+                    zoho_response = create_invoice(normalized_data)
+                    
                 print("Zoho Response:", zoho_response)
                 
                 if zoho_response and zoho_response.get("code") == 0:
                     zoho_status = "synced"
-                    zoho_invoice_id = zoho_response.get("invoice", {}).get("invoice_id")
-                    zoho_message = "Successfully synced to Zoho"
+                    # Bills use "bill_id", Invoices use "invoice_id"
+                    zoho_invoice_id = (zoho_response.get("invoice", {}).get("invoice_id") or 
+                                       zoho_response.get("bill", {}).get("bill_id"))
+                    zoho_message = f"Successfully synced to Zoho as {doc_type}"
                 elif zoho_response and "message" in zoho_response:
                     zoho_status = "failed"
                     zoho_message = zoho_response.get("message")
@@ -133,6 +140,7 @@ async def upload_invoices(
                 vendor_name=normalized_data.get("vendor_name"),
                 total_amount=normalized_data.get("total_amount"),
                 sections_data=breakdown if breakdown else None,
+                document_type=doc_type,
                 zoho_status=zoho_status,
                 zoho_invoice_id=zoho_invoice_id,
                 zoho_message=zoho_message
@@ -205,20 +213,29 @@ async def update_invoice(
     
     # ✅ NEW: Zoho Sync Logic
     try:
+        doc_type = invoice.document_type or "sales"
         if invoice.zoho_invoice_id:
-            print(f"Updating existing Zoho invoice: {invoice.zoho_invoice_id}...")
-            zoho_response = update_zoho_invoice(data, invoice.zoho_invoice_id)
+            print(f"Updating existing Zoho {doc_type}: {invoice.zoho_invoice_id}...")
+            if doc_type == "purchase":
+                zoho_response = update_zoho_bill(data, invoice.zoho_invoice_id)
+            else:
+                zoho_response = update_zoho_invoice(data, invoice.zoho_invoice_id)
         else:
-            print("Creating new Zoho invoice...")
-            zoho_response = create_invoice(data)
+            print(f"Creating new Zoho {doc_type}...")
+            if doc_type == "purchase":
+                zoho_response = create_bill(data)
+            else:
+                zoho_response = create_invoice(data)
             
         print("Zoho Sync Response:", zoho_response)
         
         if zoho_response and zoho_response.get("code") == 0:
             invoice.zoho_status = "synced"
-            invoice.zoho_message = "Updated in Zoho successfully"
+            invoice.zoho_message = f"Updated in Zoho as {doc_type} successfully"
             if not invoice.zoho_invoice_id:
-                invoice.zoho_invoice_id = zoho_response.get("invoice", {}).get("invoice_id")
+                # Bills use "bill_id", Invoices use "invoice_id"
+                invoice.zoho_invoice_id = (zoho_response.get("invoice", {}).get("invoice_id") or 
+                                          zoho_response.get("bill", {}).get("bill_id"))
         else:
             error_msg = zoho_response.get("message") or zoho_response.get("error") or "Unknown Zoho error"
             invoice.zoho_status = "failed"

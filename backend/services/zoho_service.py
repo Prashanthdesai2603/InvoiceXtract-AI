@@ -72,8 +72,8 @@ def make_zoho_request(method, url, **kwargs):
         print(f"EXCEPTION in make_zoho_request: {e}")
         raise e
 
-def get_or_create_contact(name):
-    """Finds a contact by name or creates a new one."""
+def get_or_create_contact(name, contact_type="customer"):
+    """Finds a contact by name or creates a new one as customer or vendor."""
     search_url = "https://www.zohoapis.in/books/v3/contacts"
     params = {
         "organization_id": ORG_ID,
@@ -83,7 +83,6 @@ def get_or_create_contact(name):
     try:
         # 1. Search for contact
         search_res = make_zoho_request("GET", search_url, params=params)
-        print("Zoho Search Response:", search_res.text)
         
         if search_res.status_code == 200:
             search_data = search_res.json()
@@ -93,14 +92,13 @@ def get_or_create_contact(name):
                 return contacts[0]['contact_id']
         
         # 2. Create if not found
-        print(f"DEBUG: Zoho contact not found. Creating new contact: {name}")
+        print(f"DEBUG: Zoho contact not found. Creating new {contact_type}: {name}")
         create_url = "https://www.zohoapis.in/books/v3/contacts"
         payload = {
             "contact_name": name,
-            "contact_type": "customer"
+            "contact_type": contact_type
         }
         create_res = make_zoho_request("POST", create_url, json=payload, params={"organization_id": ORG_ID})
-        print("Zoho Create Contact Response:", create_res.text)
         
         if create_res.status_code in (200, 201):
             create_data = create_res.json()
@@ -115,21 +113,19 @@ def get_or_create_contact(name):
         return None
 
 def create_invoice(data):
+    """Creates a Sales Invoice in Zoho Books"""
     url = "https://www.zohoapis.in/books/v3/invoices"
 
-    # Ensure date is a string for JSON serialization (YYYY-MM-DD)
     invoice_date = data.get("date")
     if hasattr(invoice_date, "strftime"):
         invoice_date = invoice_date.strftime("%Y-%m-%d")
     elif isinstance(invoice_date, str) and "T" in invoice_date:
         invoice_date = invoice_date.split("T")[0]
 
-    # Get or create customer ID
     vendor_name = data.get("vendor_name") or "Unknown Vendor"
-    customer_id = get_or_create_contact(vendor_name)
+    customer_id = get_or_create_contact(vendor_name, contact_type="customer")
     
     if not customer_id:
-        print("ERROR: Could not determine Zoho customer ID. Invoice creation aborted.")
         return {"error": "Could not determine Zoho customer ID"}
 
     payload = {
@@ -144,26 +140,17 @@ def create_invoice(data):
         ]
     }
 
-    params = {
-        "organization_id": ORG_ID
-    }
-
-    print("Sending data to Zoho:", payload)
-
     try:
-        response = make_zoho_request("POST", url, json=payload, params=params)
-        print("Zoho Create Invoice Response:", response.text)
+        response = make_zoho_request("POST", url, json=payload, params={"organization_id": ORG_ID})
         return response.json()
     except Exception as e:
         print(f"Zoho API Error: {e}")
         return {"error": str(e)}
 
-
 def update_zoho_invoice(invoice_data, zoho_invoice_id):
-    """Updates an existing invoice in Zoho Books."""
+    """Updates an existing Sales Invoice in Zoho Books."""
     url = f"https://www.zohoapis.in/books/v3/invoices/{zoho_invoice_id}"
     
-    # Ensure date is a string for JSON serialization (YYYY-MM-DD)
     invoice_date = invoice_data.get("date")
     if hasattr(invoice_date, "strftime"):
         invoice_date = invoice_date.strftime("%Y-%m-%d")
@@ -171,7 +158,6 @@ def update_zoho_invoice(invoice_data, zoho_invoice_id):
         invoice_date = invoice_date.split("T")[0]
 
     payload = {
-        "customer_name": invoice_data.get("vendor_name"),
         "date": invoice_date,
         "line_items": [
             {
@@ -182,16 +168,75 @@ def update_zoho_invoice(invoice_data, zoho_invoice_id):
         ]
     }
 
-    print("Sending updated data to Zoho:", payload)
-    
-    params = {
-        "organization_id": ORG_ID
-    }
-
     try:
-        response = make_zoho_request("PUT", url, json=payload, params=params)
-        print("Zoho Update Response:", response.json())
+        response = make_zoho_request("PUT", url, json=payload, params={"organization_id": ORG_ID})
         return response.json()
     except Exception as e:
         print(f"Zoho Update API Error: {e}")
+        return {"error": str(e)}
+
+def create_bill(data):
+    """Creates a Purchase Bill in Zoho Books"""
+    url = "https://www.zohoapis.in/books/v3/bills"
+
+    bill_date = data.get("date")
+    if hasattr(bill_date, "strftime"):
+        bill_date = bill_date.strftime("%Y-%m-%d")
+    elif isinstance(bill_date, str) and "T" in bill_date:
+        bill_date = bill_date.split("T")[0]
+
+    vendor_name = data.get("vendor_name") or "Unknown Vendor"
+    vendor_id = get_or_create_contact(vendor_name, contact_type="vendor")
+    
+    if not vendor_id:
+        return {"error": "Could not determine Zoho vendor ID"}
+
+    payload = {
+        "vendor_id": vendor_id,
+        "bill_number": data.get("invoice_number") or f"BILL-{int(datetime.now().timestamp())}",
+        "date": bill_date,
+        "line_items": [
+            {
+                "name": "Purchase Item",
+                "rate": float(data.get("total_amount", 0)),
+                "quantity": 1,
+                "account_id": "" # Zoho will use default if empty or we can add a setting
+            }
+        ]
+    }
+
+    try:
+        response = make_zoho_request("POST", url, json=payload, params={"organization_id": ORG_ID})
+        return response.json()
+    except Exception as e:
+        print(f"Zoho Bill API Error: {e}")
+        return {"error": str(e)}
+
+def update_zoho_bill(bill_data, zoho_bill_id):
+    """Updates an existing Purchase Bill in Zoho Books."""
+    url = f"https://www.zohoapis.in/books/v3/bills/{zoho_bill_id}"
+    
+    bill_date = bill_data.get("date")
+    if hasattr(bill_date, "strftime"):
+        bill_date = bill_date.strftime("%Y-%m-%d")
+    elif isinstance(bill_date, str) and "T" in bill_date:
+        bill_date = bill_date.split("T")[0]
+
+    payload = {
+        "bill_number": bill_data.get("invoice_number"),
+        "date": bill_date,
+        "line_items": [
+            {
+                "name": "Updated Purchase Item",
+                "rate": float(bill_data.get("total_amount", 0)),
+                "quantity": 1
+            }
+        ]
+    }
+
+    try:
+        response = make_zoho_request("PUT", url, json=payload, params={"organization_id": ORG_ID})
+        return response.json()
+    except Exception as e:
+        print(f"Zoho Bill Update Error: {e}")
         return {"error": str(e)}

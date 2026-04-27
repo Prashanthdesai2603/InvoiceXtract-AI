@@ -61,8 +61,11 @@ const Dashboard = () => {
             // ... chart processing logic ...
             processChartData(data);
         } catch (error) {
-            console.error("Dashboard data fetch error:", error);
-            toast.error("Failed to fetch dashboard data");
+            // Only log and show toast if it's NOT a 401 (which is handled globally)
+            if (error.response?.status !== 401) {
+                console.error("Dashboard data fetch error:", error);
+                toast.error("Failed to fetch dashboard data");
+            }
         } finally {
             setLoading(false);
         }
