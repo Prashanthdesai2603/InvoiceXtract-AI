@@ -1,6 +1,6 @@
 import requests
 
-ACCESS_TOKEN = "1000.96a43de43bd8a96357b1b193818b914b.14f0dc6dfd1d1716e8cecc26adc0a8be"
+ACCESS_TOKEN = ""
 
 headers = {
     "Authorization": f"Zoho-oauthtoken {ACCESS_TOKEN}"
