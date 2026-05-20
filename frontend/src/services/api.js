@@ -10,7 +10,8 @@ const api = axios.create({
 api.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('token');
-        if (token) {
+        // Don't add Authorization header for login and signup requests
+        if (token && !config.url.includes('/auth/')) {
             config.headers.Authorization = `Bearer ${token}`;
         }
         return config;
@@ -96,6 +97,20 @@ export const deleteInvoice = (id) => {
  */
 export const bulkDeleteInvoices = (ids) => {
     return api.post('/invoices/bulk-delete', ids);
+};
+
+/**
+ * Get status of multiple invoices
+ */
+export const getInvoicesStatus = (ids) => {
+    return api.post('/invoices/status', ids);
+};
+
+/**
+ * Retry processing for a failed invoice
+ */
+export const retryInvoice = (id) => {
+    return api.post(`/invoice/retry/${id}`);
 };
 
 

@@ -32,4 +32,5 @@ class FileParser:
     @staticmethod
     def _parse_excel(file_content: bytes) -> str:
         df = pd.read_excel(BytesIO(file_content))
-        return df.to_string()
+        # Ensure we don't truncate the output so AI sees everything
+        return df.to_string(max_rows=None, max_cols=None)

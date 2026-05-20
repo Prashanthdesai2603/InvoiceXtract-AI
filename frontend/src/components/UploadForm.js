@@ -3,9 +3,9 @@ import { useDropzone } from 'react-dropzone';
 import { uploadInvoices } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { Upload, FileText, X, AlertCircle } from 'lucide-react';
+import { Upload, FileText, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import ProgressIndicator from './ProgressIndicator';
+import ProcessingOverlay from './AI/ProcessingOverlay';
 import { validateFile } from '../utils/validation';
 import { formatFileSize } from '../utils/format';
 
@@ -14,6 +14,7 @@ const UploadForm = () => {
     const [uploading, setUploading] = useState(false);
     const [currentStep, setCurrentStep] = useState('uploading');
     const [status, setStatus] = useState('pending');
+    const [processingResults, setProcessingResults] = useState([]);
     const navigate = useNavigate();
 
     const onDrop = useCallback((acceptedFiles) => {
@@ -25,8 +26,8 @@ const UploadForm = () => {
                 toast.error(`${f.name}: ${error}`);
             } else if (newFiles.find(existing => existing.name === f.name && existing.size === f.size)) {
                 toast.info(`${f.name} is already selected`);
-            } else if (newFiles.length >= 10) {
-                toast.warning("Maximum 10 files allowed");
+            } else if (newFiles.length >= 100) {
+                toast.warning("Maximum 100 files allowed");
             } else {
                 newFiles.push(f);
             }
@@ -47,7 +48,7 @@ const UploadForm = () => {
             'image/jpeg': ['.jpg', '.jpeg'],
             'image/png': ['.png']
         },
-        maxFiles: 10
+        maxFiles: 100
     });
 
     const handleUpload = async () => {
@@ -58,31 +59,35 @@ const UploadForm = () => {
         setStatus('active');
 
         try {
-            // Simulated progress for better UX
-            setTimeout(() => setCurrentStep('extracting'), 1500);
-            setTimeout(() => setCurrentStep('processing'), 3500);
-
             const response = await uploadInvoices(files);
             const results = response.data;
+            setProcessingResults(results);
 
             const failures = results.filter(r => r.status === 'failed');
-            const successes = results.filter(r => r.status === 'success');
+            const successes = results.filter(r => r.status === 'processing' || r.status === 'success');
+            const duplicates = results.filter(r => r.status === 'duplicate');
 
-            setTimeout(() => {
-                setCurrentStep('completed');
-                setStatus('completed');
-                
-                if (failures.length > 0) {
-                    toast.warning(`${successes.length} processed, ${failures.length} failed.`);
-                } else {
-                    toast.success(`Successfully processed ${successes.length} invoices! ✅`);
+            if (duplicates.length > 0) {
+                duplicates.forEach(d => toast.info(`${d.file}: ${d.error}`));
+            }
+
+            if (failures.length > 0) {
+                toast.warning(`${successes.length} uploaded, ${failures.length} failed, ${duplicates.length} skipped.`);
+            } else if (duplicates.length > 0 && successes.length === 0) {
+                toast.info(`No new invoices uploaded. ${duplicates.length} duplicates detected.`);
+                setTimeout(() => navigate('/history'), 2000);
+            } else {
+                // For bulk, we stay on the overlay to show real-time progress
+                // The ProcessingOverlay now handles completion UI
+                if (files.length === 1) {
+                    setTimeout(() => {
+                        setCurrentStep('completed');
+                        setStatus('completed');
+                        toast.success(`Successfully uploaded invoice! ✅`);
+                        setTimeout(() => navigate('/history'), 1500);
+                    }, 5000); // Give some time for the single file to process
                 }
-
-                setTimeout(() => {
-                    // Redirect to history to see all uploaded items
-                    navigate('/history');
-                }, 1500);
-            }, 5500);
+            }
 
         } catch (error) {
             console.error('Upload error:', error);
@@ -110,7 +115,7 @@ const UploadForm = () => {
                     <div className="card glass-card p-4 p-md-5">
                         <div className="text-center mb-5">
                             <h2 className="fw-bold mb-2">Upload Your Invoices</h2>
-                            <p className="text-muted">Process up to 10 documents at once with our powerful AI</p>
+                            <p className="text-muted">Process up to 100 documents at once with our powerful AI</p>
                         </div>
 
                         {!uploading ? (
@@ -129,7 +134,7 @@ const UploadForm = () => {
                                         ) : (
                                             <>
                                                 <p className="fs-5 fw-semibold mb-1">Drag & drop your invoices here</p>
-                                                <p className="text-muted small">Supports PDF, Word, Excel, Images (Max 10 files, 20MB each)</p>
+                                                <p className="text-muted small">Supports PDF, Word, Excel, Images (Max 100 files, 20MB each)</p>
                                                 <button className="btn btn-outline-primary mt-2">Browse Files</button>
                                             </>
                                         )}
@@ -139,7 +144,7 @@ const UploadForm = () => {
                                 <AnimatePresence>
                                     {files.length > 0 && (
                                         <div className="selected-files-list mb-4">
-                                            <p className="small fw-bold text-muted text-uppercase mb-2">Selected Files ({files.length}/10)</p>
+                                            <p className="small fw-bold text-muted text-uppercase mb-2">Selected Files ({files.length}/100)</p>
                                             {files.map((f, idx) => (
                                                 <motion.div 
                                                     key={`${f.name}-${idx}`}
@@ -178,41 +183,43 @@ const UploadForm = () => {
                                 </button>
                             </div>
                         ) : (
-                            <div className="progress-container py-4 text-center">
-                                <ProgressIndicator currentStep={currentStep} status={status} />
-                                
-                                <div className="mt-5">
-                                    {status === 'active' && (
-                                        <motion.div 
-                                            initial={{ opacity: 0 }}
-                                            animate={{ opacity: 1 }}
-                                            className="d-flex flex-column align-items-center"
-                                        >
-                                            <h4 className="fw-semibold mb-2">
-                                                {currentStep === 'uploading' && 'Uploading document...'}
-                                                {currentStep === 'extracting' && 'Reading text layers...'}
-                                                {currentStep === 'processing' && 'AI is analyzing invoice fields...'}
-                                            </h4>
-                                            <p className="text-muted">This usually takes about 10-15 seconds</p>
-                                        </motion.div>
-                                    )}
-                                    
-                                    {status === 'failed' && (
-                                        <div className="text-danger">
-                                            <AlertCircle size={48} className="mb-3" />
-                                            <h4 className="fw-semibold">Something went wrong</h4>
-                                            <p className="mb-4">We couldn't process this document correctly.</p>
-                                            <button className="btn btn-primary" onClick={() => { setUploading(false); setStatus('pending'); }}>
-                                                Try Again
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
+                            <ProcessingOverlay 
+                                currentStep={currentStep} 
+                                status={status} 
+                                files={files} 
+                                processingResults={processingResults}
+                                onRetry={() => { setUploading(false); setStatus('pending'); setProcessingResults([]); }} 
+                            />
                         )}
                     </div>
                 </div>
             </div>
+            
+            {/* Background File Preview (Blurred) */}
+            {uploading && files.length > 0 && (
+                <div 
+                    className="position-fixed top-0 start-0 w-100 h-100" 
+                    style={{ 
+                        zIndex: -2, 
+                        opacity: 0.3, 
+                        filter: 'blur(10px)',
+                        pointerEvents: 'none'
+                    }}
+                >
+                    {files[0].type.startsWith('image/') ? (
+                        <img 
+                            src={URL.createObjectURL(files[0])} 
+                            alt="preview" 
+                            className="w-100 h-100" 
+                            style={{ objectFit: 'cover' }} 
+                        />
+                    ) : (
+                        <div className="w-100 h-100 bg-light d-flex align-items-center justify-content-center">
+                            <FileText size={400} className="text-primary opacity-10" />
+                        </div>
+                    )}
+                </div>
+            )}
             
             <style dangerouslySetInnerHTML={{ __html: `
                 .selected-file {

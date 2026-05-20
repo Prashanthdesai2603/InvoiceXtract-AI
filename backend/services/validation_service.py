@@ -104,7 +104,7 @@ class ValidationService:
 
                 # Normalize section type
                 sec_type = str(sec.get("type", "SUPPLY")).strip().upper()
-                if sec_type not in ("SUPPLY", "SERVICE"):
+                if sec_type not in ("SUPPLY", "SERVICE", "TAX", "DISCOUNT", "FEE"):
                     sec_type = "SUPPLY"
 
                 # Normalize section description

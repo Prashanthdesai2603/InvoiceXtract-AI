@@ -5,6 +5,7 @@ InvoiceXtract AI is a full-stack web application designed to automate the extrac
 ## Features
 
 - **Multi-Format Support**: Extract data from PDF, .docx, and .xlsx files.
+- **Bulk AI Processing**: Upload and process up to 100 invoices simultaneously.
 - **AI-Powered Extraction**: Uses Gemini Pro for intelligent JSON data extraction.
 - **OCR Integration**: Google Vision API for scanning image-based invoices.
 - **Interactive Dashboard**: Real-time stats on processed invoices and total amounts.
@@ -146,10 +147,8 @@ ZOHO_ACCESS_TOKEN=placeholder
 4. **Validation**: The backend normalizes fields like dates and amounts.
 5. **Storage**: Data is saved to MySQL and presented for review in the UI.
 
-## Future Enhancements
-- Support for batches of invoices.
-- Export to CSV/Excel.
-- User authentication and role-based access.
+- [ ] AI-Powered Fraud Detection
+- [ ] Automated Line-Item Reconciliation
 
 ## Complete Workflow:
 1. User uploads invoice (PDF/Word/Excel)
@@ -193,19 +192,176 @@ ZOHO_ACCESS_TOKEN=placeholder
 
 
 ## Architecture (Frontend + Backend + AI):
-                ┌───────────────────────┐
-                │        Frontend       │
-                │  (React + Bootstrap)  │
-                └──────────┬────────────┘
-                           │
-                           ▼
-                ┌────────────────────────┐
-                │      FastAPI Backend   │
-                │  (API + Business Logic)│
-                └──────────┬────────────┘
-                           │
-        ┌──────────────────┴──────────────────┐
-        ▼                                     ▼
+
+```mermaid
+graph TD
+    A[User / Invoice Document] -->|Upload| B[React Frontend]
+    B -->|REST API| C[FastAPI Backend]
+    C -->|OCR / Vision| D[Google Vision API]
+    D -->|Text Extraction| E[Gemini 1.5 Flash AI]
+    E -->|Structured JSON| F[Validation Layer]
+    F -->|Persistence| G[(MySQL Database)]
+    F -->|Sync| H[Zoho Books API]
+    H -->|Automated Accounting| I[Zoho Bills/Invoices]
+    B -->|Analytics| J[Dashboard Charts]
+```
+
+---
+
+## 🚀 Complete Installation Guide
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/Prashanthdesai2603/InvoiceXtract-AI.git
+cd InvoiceXtract-AI
+```
+
+### 2. Backend Setup
+```bash
+cd backend
+python -m venv venv
+# Windows
+venv\Scripts\activate
+# Mac/Linux
+source venv/bin/activate
+
+pip install -r requirements.txt
+```
+
+### 3. Frontend Setup
+```bash
+cd ../frontend
+npm install
+```
+
+### 4. Running the Project
+**Terminal 1 (Backend):**
+```bash
+cd backend
+python -m uvicorn main:app --reload
+```
+**Terminal 2 (Frontend):**
+```bash
+cd frontend
+npm start
+```
+
+---
+
+## ⚙️ Environment Variables Setup
+
+Create a `.env` file in the `backend/` directory:
+
+```env
+# Database Configuration
+DATABASE_URL=mysql+pymysql://user:password@localhost/invoice_db
+
+# Security
+SECRET_KEY=your_super_secret_key_here
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
+
+# AI Configuration
+GEMINI_API_KEY=your_gemini_api_key
+
+# Zoho Integration
+ZOHO_CLIENT_ID=your_client_id
+ZOHO_CLIENT_SECRET=your_client_secret
+ZOHO_REFRESH_TOKEN=your_refresh_token
+ZOHO_ORGANIZATION_ID=your_org_id
+```
+
+---
+
+## 🤖 Gemini AI Setup
+1. Visit [Google AI Studio](https://aistudio.google.com/).
+2. Create a new API Key.
+3. Add it to your `.env` as `GEMINI_API_KEY`.
+4. The system uses **Gemini 1.5 Flash** for rapid, accurate document parsing and field extraction.
+
+---
+
+## 🏢 Zoho Books Integration Setup
+
+### Step 1: Zoho Developer Console
+1. Go to [Zoho Developer Console](https://api-console.zoho.in/).
+2. Click **Add Client** → **Self Client**.
+3. Note your **Client ID** and **Client Secret**.
+
+### Step 2: Generate Refresh Token
+1. In the Self Client tab, click **Generate Code**.
+2. Scopes: `ZohoBooks.fullaccess.all`.
+3. Time Duration: 10 minutes.
+4. Run the helper script:
+```bash
+cd backend
+python get_token.py
+```
+5. Follow the prompts to generate and save your `ZOHO_REFRESH_TOKEN`.
+
+### Step 3: Get Organization ID
+Run the utility script to fetch your Org ID:
+```bash
+python get_org.py
+```
+
+---
+
+## 📁 Folder Structure Explanation
+
+### `backend/`
+- `main.py`: Application entry point and middleware configuration.
+- `routes/`: API endpoint definitions (Auth, Invoices, Zoho).
+- `services/`: Business logic (Gemini extraction, Zoho API management).
+- `models/`: SQLAlchemy database models.
+- `database/`: DB connection and session management.
+- `uploads/`: Temporary storage for processed documents.
+
+### `frontend/`
+- `src/components/`: Reusable UI modules (AI Processing Card, Tables).
+- `src/pages/`: Main application views (Dashboard, History).
+- `src/services/`: API communication layer (Axios instances).
+- `src/context/`: Global state management (Auth/Theme).
+
+---
+
+## 🛠️ Essential Terminal Commands
+
+| Command | Description |
+|:---|:---|
+| `python -m uvicorn main:app --reload` | Start backend development server |
+| `npm start` | Start React frontend |
+| `python get_token.py` | Generate Zoho Refresh Token |
+| `python get_org.py` | Fetch Zoho Organization ID |
+| `python test_refresh.py` | Verify Zoho API connectivity |
+
+---
+
+## 🔒 Security & Best Practices
+- **.env Protection**: Never commit your `.env` file. It is included in `.gitignore`.
+- **Token Rotation**: System automatically refreshes Access Tokens using the Refresh Token.
+- **Data Integrity**: Multi-layer validation ensures only clean data reaches Zoho Books.
+
+---
+
+## 🚀 Future Roadmap
+- [ ] AI-Powered Fraud Detection
+- [ ] Automated Line-Item Reconciliation
+- [ ] Bulk Export to ERP (SAP/Oracle)
+- [ ] Multi-Currency Intelligence
+- [ ] Mobile App for On-the-go Scanning
+
+---
+
+## 🤝 Contribution Guide
+1. Fork the repository.
+2. Create a feature branch (`git checkout -b feature/AmazingFeature`).
+3. Commit changes (`git commit -m 'Add some AmazingFeature'`).
+4. Push to branch (`git push origin feature/AmazingFeature`).
+5. Open a Pull Request.
+
+---
+**Developed with ❤️ by the InvoiceXtract AI Team**
 ┌───────────────────────┐         ┌───────────────────────┐
 │   File Processing     │         │     MySQL Database    │
 │ (PDF/Word/Excel)      │         │ Store invoice data    │

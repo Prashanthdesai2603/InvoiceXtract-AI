@@ -33,9 +33,10 @@ const Login = () => {
             toast.success('Login successful!');
             navigate('/dashboard');
         } catch (err) {
-            console.error('Login error:', err);
-            setError(err.detail || 'Invalid username or password');
-            toast.error('Login failed');
+            console.error('Login error:', err.detail || err.message || err);
+            const errorMessage = err.detail || (err.message === 'Network error' ? 'Server is unreachable. Please check your connection.' : 'Invalid username or password');
+            setError(errorMessage);
+            toast.error(errorMessage);
         } finally {
             setLoading(false);
         }

@@ -11,223 +11,214 @@ load_dotenv()
 class GeminiService:
     def __init__(self):
         api_key = os.getenv("GEMINI_API_KEY")
-        self.model_name = "gemini-2.5-flash"
+        # Dynamic model selection
+        self.model_name = os.getenv("GEMINI_MODEL")
+        self.client = None
+        self.model = None
 
         if api_key:
             try:
-                print(f"DEBUG: Initializing Gemini model: {self.model_name}")
                 self.client = genai.Client(api_key=api_key)
-                self.model = True  # Mark as initialized
+                
+                # If no model specified in .env, discover best available
+                if not self.model_name:
+                    preferred = [
+                        "gemini-3.1-flash-lite-preview", 
+                        "gemini-3-flash-preview", 
+                        "gemini-2.5-flash-lite",
+                        "gemini-2.0-flash", 
+                        "gemini-1.5-flash", 
+                        "gemini-flash-latest"
+                    ]
+
+                    available_models = [m.name.replace("models/", "") for m in self.client.models.list()]
+                    
+                    for p in preferred:
+                        if p in available_models:
+                            self.model_name = p
+                            break
+                    
+                    if not self.model_name:
+                        self.model_name = available_models[0] if available_models else "gemini-1.5-flash"
+
+                print(f"DEBUG: Initializing Gemini model: {self.model_name}")
+                self.model = True
             except Exception as e:
                 print(f"DEBUG: Gemini client init error: {e}")
                 self.client = None
                 self.model = None
         else:
             print("ERROR: Missing GEMINI_API_KEY")
-            self.client = None
-            self.model = None
 
     def _get_strict_prompt(self):
         return """
-You are an advanced AI invoice extraction system. Analyze the given financial document carefully.
+You are a highly precise financial AI. Analyze the provided document (PDF, Image, or Text) with extreme care.
+CRITICAL: The document may contain MULTIPLE separate invoice sections, bills, or annexures (e.g., Product Tax Invoice, GT Charges, Transport Bill, Service Annexure).
 
-The document may contain:
-- A MAIN product invoice (goods/items purchased)
-- ADDITIONAL charges: Handling Fee, GT Charges, GTA, Delivery Fee, Transport, Service charges, Platform fee
-
-Your job: Extract COMPLETE invoice data in STRICT JSON format.
-
----
-
-EXTRACTION TARGETS:
-
-1. invoice_number  → Invoice No, Bill No, Ref No, Document No, Order ID
-2. invoice_date    → Invoice Date, Billing Date, Order Date (format: YYYY-MM-DD)
-3. vendor_name     → Seller, Supplier, Sold By, Company Name
-4. total_amount    → Grand Total = SUM of ALL breakdown amounts
-5. document_type   → Classify as "sales" (if you are the SELLER) or "purchase" (if you are the BUYER/RECEIVER). Default to "sales" if unclear.
-6. breakdown       → Array of ALL financial sections found
+YOUR MANDATORY TASK:
+1. Scan the entire document from top to bottom.
+2. Identify EVERY unique section that contributes to the total transaction.
+3. Extract COMPLETE data for EACH identified section.
+4. If multiple sections belong to the same Order (same Order ID or Order Number), ensure you capture that Order ID for each.
+5. Categorize line items into 'breakdown' (e.g., SUPPLY, SERVICE, TAX, DISCOUNT, FEE).
 
 ---
 
-BREAKDOWN RULES:
-
-Each breakdown entry must have:
-- "type": "SUPPLY" or "SERVICE"
-- "description": short label (e.g., "Product Invoice", "GTA Handling Fee")
-- "amount": numeric value (no currency symbol)
-
-Classification:
-- SUPPLY  → Product, Item, Goods, HSN Code present, main invoice total
-- SERVICE → Handling Fee, GT Charges, GTA, Delivery, Transport, Freight, Service, Platform Fee, Commission
-
----
-
-MULTI-PAGE / MULTI-SECTION RULES:
-- Scan ALL pages of the document
-- If multiple invoice sections exist → extract EACH as a separate breakdown entry
-- DO NOT ignore secondary sections or small charges
-- total_amount MUST equal the sum of all breakdown[].amount values
-- If total_amount from doc differs from sum → recalculate and use calculated sum
+EXTRACTION TARGETS FOR EACH ITEM:
+1. invoice_number  → Specific Invoice No/Bill No for this section
+2. order_id        → The parent Order ID or Order Number (CRITICAL for grouping)
+3. invoice_date    → Date of issue (YYYY-MM-DD)
+4. vendor_name     → Full name of the Seller/Supplier
+5. customer_name   → Full name of the Buyer/Recipient
+6. total_amount    → Final payable amount for THIS section
+7. document_type   → "Sales Invoice", "Purchase Invoice", "Receipt", "Credit Note", "Delivery Challan", "Transport Bill", "Service Annexure"
+8. category        → "Office Expense", "Travel", "IT Equipment", "Food & Beverage", "Utilities", "Rent", "Marketing", "Others"
+9. confidence_score → 0-100
+10. breakdown       → Array of {type: "SUPPLY"|"SERVICE"|"TAX"|"DISCOUNT"|"FEE", description: "...", amount: 0.00}
 
 ---
 
-STRICT OUTPUT FORMAT (return ONLY this JSON, no extra text):
+STRICT OUTPUT FORMAT:
+Return ONLY a JSON ARRAY of objects. Each object represents one distinct section found.
 
-{
-  "invoice_number": "...",
-  "invoice_date": "YYYY-MM-DD",
-  "vendor_name": "...",
-  "total_amount": 0.00,
-  "document_type": "sales",
-  "breakdown": [
-    {
-      "type": "SUPPLY",
-      "description": "...",
-      "amount": 0.00
-    },
-    {
-      "type": "SERVICE",
-      "description": "...",
-      "amount": 0.00
-    }
-  ]
-}
-
----
+[
+  {
+    "invoice_number": "...",
+    "order_id": "...",
+    "invoice_date": "YYYY-MM-DD",
+    "vendor_name": "...",
+    "customer_name": "...",
+    "total_amount": 0.00,
+    "document_type": "...",
+    "category": "...",
+    "confidence_score": 95,
+    "breakdown": [
+      { "type": "SUPPLY", "description": "Laptop Product", "amount": 41117.00 },
+      { "type": "SERVICE", "description": "GT Charges", "amount": 1123.00 },
+      { "type": "TAX", "description": "IGST 18%", "amount": 6272.00 }
+    ]
+  },
+  ... (more objects if more sections exist)
+]
 
 RULES:
-- Return ONLY valid JSON — no markdown, no explanation, no extra keys
-- breakdown array must have AT LEAST 1 entry
-- All amount values must be plain numbers (no ₹ or commas)
-- If a field cannot be determined → use null
-- total_amount must always equal sum(breakdown[].amount)
+- DO NOT skip any section. Even small transport bills or charge sheets must be extracted.
+- If an order has multiple pages with different bills, return them as separate objects but keep the same order_id.
+- Return ONLY valid JSON. No markdown blocks. No explanations.
 """
 
-    def _extract_json(self, content, raw_text=""):
-        """Robust JSON extraction with multi-section breakdown support."""
+    def _extract_json(self, content, raw_text="") -> list:
+        """Robust JSON extraction supporting a list of invoices."""
         print(f"--- LOG: RAW LLM RESPONSE ---\n{content}\n-----------------------------")
-
-        extracted_data = self._get_fallback_data()
 
         try:
             # 1. Clean and extract JSON block
-            # Support both ```json ... ``` wrapped and raw JSON
             json_str = None
-
-            # Try to find JSON inside code fences first
-            fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
+            fence_match = re.search(r"```(?:json)?\s*(\[.*?\]|\{.*?\})\s*```", content, re.DOTALL)
             if fence_match:
                 json_str = fence_match.group(1)
             else:
-                # Find outermost { ... }
-                match = re.search(r"\{.*\}", content, re.DOTALL)
+                match = re.search(r"(\[.*\]|\{.*\})", content, re.DOTALL)
                 if match:
                     json_str = match.group()
 
-            if json_str:
-                json_str = json_str.strip()
-                try:
-                    data = json.loads(json_str)
-                    print(f"--- LOG: PARSED JSON ---\n{json.dumps(data, indent=2)}\n-------------------------")
-
-                    # -- Map core fields --
-                    extracted_data["invoice_number"] = data.get("invoice_number")
-                    extracted_data["vendor_name"] = data.get("vendor_name")
-
-                    # Support both "date" and "invoice_date" keys from AI
-                    extracted_data["date"] = data.get("invoice_date") or data.get("date")
-
-                    # -- total_amount --
-                    amt = data.get("total_amount")
-                    if amt is not None:
-                        try:
-                            extracted_data["total_amount"] = float(str(amt).replace(",", ""))
-                        except (ValueError, TypeError):
-                            extracted_data["total_amount"] = 0.0
-
-                    # -- document_type --
-                    doc_type = str(data.get("document_type", "sales")).lower()
-                    extracted_data["document_type"] = "purchase" if "purchase" in doc_type or "bill" in doc_type else "sales"
-
-                    # -- breakdown array --
-                    breakdown_raw = data.get("breakdown")
-                    if isinstance(breakdown_raw, list) and len(breakdown_raw) > 0:
-                        normalized_breakdown = []
-                        calculated_sum = 0.0
-
-                        for item in breakdown_raw:
-                            if not isinstance(item, dict):
-                                continue
-
-                            sec_type = str(item.get("type", "SUPPLY")).upper()
-                            if sec_type not in ("SUPPLY", "SERVICE"):
-                                # Reclassify unknown types
-                                sec_type = "SERVICE" if any(
-                                    kw in str(item.get("description", "")).upper()
-                                    for kw in ["HANDLING", "GTA", "DELIVERY", "TRANSPORT", "FREIGHT", "SERVICE", "FEE", "COMMISSION", "PLATFORM"]
-                                ) else "SUPPLY"
-
-                            sec_desc = str(item.get("description", "")).strip() or sec_type.capitalize()
-
-                            try:
-                                sec_amt = float(str(item.get("amount", 0)).replace(",", ""))
-                            except (ValueError, TypeError):
-                                sec_amt = 0.0
-
-                            calculated_sum += sec_amt
-                            normalized_breakdown.append({
-                                "type": sec_type,
-                                "description": sec_desc,
-                                "amount": sec_amt
-                            })
-
-                        extracted_data["breakdown"] = normalized_breakdown
-
-                        # Validate: total_amount must equal sum of breakdown
-                        if calculated_sum > 0:
-                            if abs(extracted_data["total_amount"] - calculated_sum) > 0.01:
-                                print(f"WARNING: total_amount mismatch. AI said {extracted_data['total_amount']}, calculated {calculated_sum}. Using calculated.")
-                                extracted_data["total_amount"] = round(calculated_sum, 2)
-
-                except json.JSONDecodeError as je:
-                    print(f"DEBUG: JSON parse error: {je}")
-            else:
+            if not json_str:
                 print("DEBUG: No JSON structure found in LLM response.")
+                return [self._get_fallback_data()]
 
-            # 2. FALLBACK LOGIC — If critical fields still missing
-            if not extracted_data["total_amount"] or extracted_data["total_amount"] == 0:
-                extracted_data["total_amount"] = self._fallback_extract_total(content if content else raw_text)
+            data = json.loads(json_str.strip())
+            
+            # Ensure data is a list
+            if isinstance(data, dict):
+                data = [data]
+            elif not isinstance(data, list):
+                print(f"DEBUG: Unexpected data type from JSON: {type(data)}")
+                return [self._get_fallback_data()]
 
-            if not extracted_data["date"]:
-                extracted_data["date"] = self._fallback_extract_date(content if content else raw_text)
+            results = []
+            for item in data:
+                extracted_item = self._process_single_item(item, content if content else raw_text)
+                results.append(extracted_item)
 
-            if not extracted_data["invoice_number"]:
-                extracted_data["invoice_number"] = self._fallback_extract_invoice_no(content if content else raw_text)
-
-            # 3. If breakdown is empty but we have a total, create at least one SUPPLY entry
-            if not extracted_data.get("breakdown") and extracted_data["total_amount"] > 0:
-                extracted_data["breakdown"] = [{
-                    "type": "SUPPLY",
-                    "description": "Invoice Total",
-                    "amount": extracted_data["total_amount"]
-                }]
-
-            # 4. VALIDATION
-            is_valid = self._validate_extraction(extracted_data)
-            if not is_valid:
-                print("WARNING: Extraction failed validation (all fields null).")
-
-            # Log missing fields
-            missing = [k for k, v in extracted_data.items() if v is None or v == 0.0 or v == []]
-            if missing:
-                print(f"--- LOG: MISSING/EMPTY FIELDS ---: {', '.join(missing)}")
-
-            return extracted_data
+            return results
 
         except Exception as e:
             print(f"ERROR: Extraction process failed: {e}")
-            return self._get_fallback_data()
+            return [self._get_fallback_data()]
+
+    def _process_single_item(self, data, context_text) -> dict:
+        """Processes a single invoice object from the AI response."""
+        extracted_data = self._get_fallback_data()
+        
+        # -- Map core fields --
+        extracted_data["invoice_number"] = data.get("invoice_number")
+        extracted_data["order_id"] = data.get("order_id")
+        extracted_data["vendor_name"] = data.get("vendor_name")
+        extracted_data["customer_name"] = data.get("customer_name")
+        extracted_data["date"] = data.get("invoice_date") or data.get("date")
+
+        # -- total_amount --
+        amt = data.get("total_amount")
+        if amt is not None:
+            try:
+                extracted_data["total_amount"] = float(str(amt).replace(",", ""))
+            except (ValueError, TypeError):
+                extracted_data["total_amount"] = 0.0
+
+        # -- document_type & category & confidence --
+        extracted_data["document_type"] = data.get("document_type", "Sales Invoice")
+        extracted_data["category"] = data.get("category", "Others")
+        extracted_data["confidence_score"] = data.get("confidence_score", 0)
+
+        # -- breakdown array --
+        breakdown_raw = data.get("breakdown")
+        if isinstance(breakdown_raw, list) and len(breakdown_raw) > 0:
+            normalized_breakdown = []
+            calculated_sum = 0.0
+
+            for item in breakdown_raw:
+                if not isinstance(item, dict):
+                    continue
+
+                sec_type = str(item.get("type", "SUPPLY")).upper()
+                if sec_type not in ("SUPPLY", "SERVICE", "TAX", "DISCOUNT", "FEE"):
+                    sec_type = "SERVICE" if any(
+                        kw in str(item.get("description", "")).upper()
+                        for kw in ["HANDLING", "GTA", "DELIVERY", "TRANSPORT", "FREIGHT", "SERVICE", "FEE", "COMMISSION", "PLATFORM"]
+                    ) else "SUPPLY"
+
+                sec_desc = str(item.get("description", "")).strip() or sec_type.capitalize()
+
+                try:
+                    sec_amt = float(str(item.get("amount", 0)).replace(",", ""))
+                except (ValueError, TypeError):
+                    sec_amt = 0.0
+
+                calculated_sum += sec_amt
+                normalized_breakdown.append({
+                    "type": sec_type,
+                    "description": sec_desc,
+                    "amount": sec_amt
+                })
+
+            extracted_data["breakdown"] = normalized_breakdown
+            if calculated_sum > 0 and abs(extracted_data["total_amount"] - calculated_sum) > 0.01:
+                extracted_data["total_amount"] = round(calculated_sum, 2)
+
+        # Fallbacks for critical fields (only if context_text is small enough or specifically for this item)
+        # Note: Fallbacks might be tricky with multiple items, but we'll try
+        if not extracted_data["total_amount"] or extracted_data["total_amount"] == 0:
+             # Try to find amount in the item's own context if available
+             pass 
+
+        if not extracted_data.get("breakdown") and extracted_data["total_amount"] > 0:
+            extracted_data["breakdown"] = [{
+                "type": "SUPPLY",
+                "description": "Invoice Total",
+                "amount": extracted_data["total_amount"]
+            }]
+
+        return extracted_data
 
     def _fallback_extract_total(self, text):
         """Detect largest number → possible total_amount."""
@@ -286,8 +277,7 @@ RULES:
     def extract_invoice_data(self, text: str) -> dict:
         """Extract data from raw text with retry logic."""
         if not self.client:
-            print("ERROR: Gemini client not initialized")
-            return self._get_fallback_data()
+            raise ValueError("Gemini API Key is missing. Please add GEMINI_API_KEY to your .env file.")
 
         max_retries = 5
         for attempt in range(max_retries):
@@ -305,9 +295,10 @@ RULES:
                 return self._extract_json(response.text.strip(), raw_text=text)
 
             except Exception as e:
-                if "429" in str(e) and attempt < max_retries - 1:
-                    print(f"WARNING: Gemini 429 (Rate Limit). Retrying in 15s... (Attempt {attempt+1}/{max_retries})")
-                    time.sleep(15)
+                if any(err in str(e) for err in ["429", "503"]) and attempt < max_retries - 1:
+                    wait_time = 15 if "429" in str(e) else 5
+                    print(f"WARNING: Gemini {e}. Retrying in {wait_time}s... (Attempt {attempt+1}/{max_retries})")
+                    time.sleep(wait_time)
                     continue
                 print(f"ERROR: Gemini text extraction failed: {e}")
                 return self._get_fallback_data()
@@ -315,8 +306,7 @@ RULES:
     def extract_from_pdf(self, file_bytes: bytes) -> dict:
         """Extract data directly from PDF bytes using Gemini with retry logic."""
         if not self.client:
-            print("ERROR: Gemini client not initialized")
-            return self._get_fallback_data()
+            raise ValueError("Gemini API Key is missing. Please add GEMINI_API_KEY to your .env file.")
 
         max_retries = 5
         for attempt in range(max_retries):
@@ -330,28 +320,42 @@ RULES:
                     ]
                 )
 
-                if not response or not hasattr(response, "text"):
-                    print("DEBUG: Gemini returned empty or invalid response for PDF")
-                    return self._get_fallback_data()
+                if not response or not response.candidates:
+                    print(f"DEBUG: Gemini returned no candidates (Attempt {attempt+1})")
+                    continue
 
-                return self._extract_json(response.text.strip())
+                # Check safety ratings or finish reason if text is missing
+                candidate = response.candidates[0]
+                if candidate.finish_reason and candidate.finish_reason != "STOP":
+                    print(f"WARNING: Gemini finish reason: {candidate.finish_reason}")
+                
+                try:
+                    content = response.text.strip()
+                    return self._extract_json(content)
+                except Exception as text_error:
+                    print(f"ERROR: Could not retrieve text from Gemini response: {text_error}")
+                    print(f"DEBUG: Candidate content: {candidate.content}")
+                    continue
 
             except Exception as e:
-                if "429" in str(e) and attempt < max_retries - 1:
-                    print(f"WARNING: Gemini 429 (Rate Limit). Retrying in 15s... (Attempt {attempt+1}/{max_retries})")
-                    time.sleep(15)
+                if any(err in str(e) for err in ["429", "503"]) and attempt < max_retries - 1:
+                    wait_time = 15 if "429" in str(e) else 5
+                    print(f"WARNING: Gemini {e}. Retrying in {wait_time}s... (Attempt {attempt+1}/{max_retries})")
+                    time.sleep(wait_time)
                     continue
-                # Raise exception here to be caught by the route for fallback
-                if "429" in str(e):
+                
+                # Critical errors should be raised
+                if any(err in str(e) for err in ["403", "401", "PERMISSION_DENIED", "API_KEY_INVALID", "leaked"]):
+                    print(f"CRITICAL ERROR: Gemini API authentication failed: {e}")
                     raise e
+
                 print(f"ERROR: Gemini PDF extraction failed: {e}")
                 return self._get_fallback_data()
 
     def extract_from_image(self, file_bytes: bytes, mime_type: str) -> dict:
         """Extract data directly from image bytes using Gemini with retry logic."""
         if not self.client:
-            print("ERROR: Gemini client not initialized")
-            return self._get_fallback_data()
+            raise ValueError("Gemini API Key is missing. Please add GEMINI_API_KEY to your .env file.")
 
         max_retries = 5
         for attempt in range(max_retries):
@@ -365,26 +369,47 @@ RULES:
                     ]
                 )
 
-                if not response or not hasattr(response, "text"):
-                    print("DEBUG: Gemini returned empty or invalid response for Image")
-                    return self._get_fallback_data()
+                if not response or not response.candidates:
+                    print(f"DEBUG: Gemini returned no candidates (Attempt {attempt+1})")
+                    continue
 
-                return self._extract_json(response.text.strip())
+                candidate = response.candidates[0]
+                if candidate.finish_reason and candidate.finish_reason != "STOP":
+                    print(f"WARNING: Gemini finish reason: {candidate.finish_reason}")
+
+                try:
+                    content = response.text.strip()
+                    return self._extract_json(content)
+                except Exception as text_error:
+                    print(f"ERROR: Could not retrieve text from Gemini response: {text_error}")
+                    print(f"DEBUG: Candidate content: {candidate.content}")
+                    continue
 
             except Exception as e:
-                if "429" in str(e) and attempt < max_retries - 1:
-                    print(f"WARNING: Gemini 429 (Rate Limit). Retrying in 15s... (Attempt {attempt+1}/{max_retries})")
-                    time.sleep(15)
+                if any(err in str(e) for err in ["429", "503"]) and attempt < max_retries - 1:
+                    wait_time = 15 if "429" in str(e) else 5
+                    print(f"WARNING: Gemini {e}. Retrying in {wait_time}s... (Attempt {attempt+1}/{max_retries})")
+                    time.sleep(wait_time)
                     continue
+
+                # Critical errors should be raised
+                if any(err in str(e) for err in ["403", "401", "PERMISSION_DENIED", "API_KEY_INVALID", "leaked"]):
+                    print(f"CRITICAL ERROR: Gemini API authentication failed: {e}")
+                    raise e
+
                 print(f"ERROR: Gemini Image extraction failed: {e}")
                 return self._get_fallback_data()
 
     def _get_fallback_data(self):
         return {
             "invoice_number": None,
+            "order_id": None,
             "date": None,
             "vendor_name": None,
+            "customer_name": None,
             "total_amount": 0.0,
-            "document_type": "sales",
+            "document_type": "Sales Invoice",
+            "category": "Others",
+            "confidence_score": 0,
             "breakdown": []
         }

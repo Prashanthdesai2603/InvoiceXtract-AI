@@ -20,7 +20,7 @@ function AppContent() {
     return (
         <div className="App min-vh-100 transition-all duration-300">
             <Navbar />
-            <main className="container pb-5">
+            <main className="container-fluid px-md-5 pb-5">
                 <Routes>
                     {/* Public Routes */}
                     <Route path="/" element={<Login />} />

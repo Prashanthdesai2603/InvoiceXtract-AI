@@ -6,18 +6,24 @@ load_dotenv()
 
 class OCRService:
     def __init__(self):
-        creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+        self.creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+        self._client = None
 
-        if creds_path and os.path.exists(creds_path):
+    @property
+    def client(self):
+        if self._client is not None:
+            return self._client
+        
+        if self.creds_path and os.path.exists(self.creds_path):
             try:
-                self.client = vision.ImageAnnotatorClient()
+                self._client = vision.ImageAnnotatorClient()
                 print("DEBUG: OCR Client initialized successfully.")
+                return self._client
             except Exception as e:
                 print(f"ERROR: OCR Client initialization failed: {e}")
-                self.client = None
-        else:
-            print("WARNING: GOOGLE_APPLICATION_CREDENTIALS not set or file missing. OCR will be disabled.")
-            self.client = None
+                return None
+        return None
+
 
     def extract_text_from_image(self, content: bytes) -> str:
         """Performs OCR on image bytes. PDF processing is NOT supported here anymore."""

@@ -73,7 +73,8 @@ def make_zoho_request(method, url, **kwargs):
         raise e
 
 def get_or_create_contact(name, contact_type="customer"):
-    """Finds a contact by name or creates a new one as customer or vendor."""
+    """Finds a contact by name or creates a new one as customer or vendor.
+       Handles contacts that exist as one type but need to be used as both."""
     search_url = "https://www.zohoapis.in/books/v3/contacts"
     params = {
         "organization_id": ORG_ID,
@@ -88,8 +89,44 @@ def get_or_create_contact(name, contact_type="customer"):
             search_data = search_res.json()
             contacts = search_data.get('contacts', [])
             if contacts:
-                print(f"DEBUG: Found existing Zoho contact: {name} (ID: {contacts[0]['contact_id']})")
-                return contacts[0]['contact_id']
+                contact = contacts[0]
+                contact_id = contact['contact_id']
+                
+                # Check if it already has the required role
+                has_role = False
+                if contact_type == "customer" and contact.get('is_customer'):
+                    has_role = True
+                elif contact_type == "vendor" and contact.get('is_vendor'):
+                    has_role = True
+                
+                if has_role:
+                    print(f"DEBUG: Found existing Zoho {contact_type}: {name} (ID: {contact_id})")
+                    return contact_id
+                else:
+                    # Upgrade existing contact to have the new role
+                    print(f"DEBUG: Contact {name} exists but is not a {contact_type}. Upgrading...")
+                    update_url = f"https://www.zohoapis.in/books/v3/contacts/{contact_id}"
+                    
+                    # We only enable the required role, Zoho usually preserves existing ones
+                    update_payload = {
+                        "is_customer": True if contact_type == "customer" else contact.get('is_customer', True),
+                        "is_vendor": True if contact_type == "vendor" else contact.get('is_vendor', False)
+                    }
+                    # If we don't know the state of the other flag, it's safer to just send the one we want to enable
+                    # However, Zoho PUT often requires all mandatory fields or might overwrite.
+                    # A safer way is to just send the specific flag we want to set to true.
+                    safe_payload = {
+                        "is_vendor": True if contact_type == "vendor" else contact.get('is_vendor', False),
+                        "is_customer": True if contact_type == "customer" else contact.get('is_customer', True)
+                    }
+                    
+                    update_res = make_zoho_request("PUT", update_url, json=safe_payload, params={"organization_id": ORG_ID})
+                    if update_res.status_code == 200:
+                        print(f"DEBUG: Successfully upgraded {name} to {contact_type}")
+                        return contact_id
+                    else:
+                        print(f"ERROR upgrading Zoho contact: {update_res.text}")
+                        return contact_id
         
         # 2. Create if not found
         print(f"DEBUG: Zoho contact not found. Creating new {contact_type}: {name}")
@@ -128,20 +165,38 @@ def create_invoice(data):
     if not customer_id:
         return {"error": "Could not determine Zoho customer ID"}
 
+    # Map breakdown to line items
+    line_items = []
+    breakdown = data.get("breakdown") or data.get("sections_data") or []
+    
+    if breakdown:
+        for item in breakdown:
+            rate = float(item.get("amount", 0))
+            if item.get("type") == "DISCOUNT":
+                rate = -abs(rate)
+                
+            line_items.append({
+                "name": item.get("description") or f"{item.get('type')} Item",
+                "rate": rate,
+                "quantity": 1
+            })
+    else:
+        line_items.append({
+            "name": "Invoice Item",
+            "rate": float(data.get("total_amount", 0)),
+            "quantity": 1
+        })
+
     payload = {
         "customer_id": customer_id,
+        "invoice_number": data.get("invoice_number"),
         "date": invoice_date,
-        "line_items": [
-            {
-                "name": "Invoice Item",
-                "rate": float(data.get("total_amount", 0)),
-                "quantity": 1
-            }
-        ]
+        "line_items": line_items,
+        "ignore_auto_number_generation": True
     }
 
     try:
-        response = make_zoho_request("POST", url, json=payload, params={"organization_id": ORG_ID})
+        response = make_zoho_request("POST", url, json=payload, params={"organization_id": ORG_ID, "ignore_auto_number_generation": "true"})
         return response.json()
     except Exception as e:
         print(f"Zoho API Error: {e}")
@@ -157,15 +212,31 @@ def update_zoho_invoice(invoice_data, zoho_invoice_id):
     elif isinstance(invoice_date, str) and "T" in invoice_date:
         invoice_date = invoice_date.split("T")[0]
 
+    # Map breakdown to line items
+    line_items = []
+    breakdown = invoice_data.get("breakdown") or invoice_data.get("sections_data") or []
+    
+    if breakdown:
+        for item in breakdown:
+            rate = float(item.get("amount", 0))
+            if item.get("type") == "DISCOUNT":
+                rate = -abs(rate)
+                
+            line_items.append({
+                "name": item.get("description") or f"{item.get('type')} Item",
+                "rate": rate,
+                "quantity": 1
+            })
+    else:
+        line_items.append({
+            "name": "Updated Invoice Item",
+            "rate": float(invoice_data.get("total_amount", 0)),
+            "quantity": 1
+        })
+
     payload = {
         "date": invoice_date,
-        "line_items": [
-            {
-                "name": "Updated Invoice Item",
-                "rate": float(invoice_data.get("total_amount", 0)),
-                "quantity": 1
-            }
-        ]
+        "line_items": line_items
     }
 
     try:
@@ -191,22 +262,40 @@ def create_bill(data):
     if not vendor_id:
         return {"error": "Could not determine Zoho vendor ID"}
 
+    # Map breakdown to line items
+    line_items = []
+    breakdown = data.get("breakdown") or data.get("sections_data") or []
+    
+    if breakdown:
+        for item in breakdown:
+            rate = float(item.get("amount", 0))
+            if item.get("type") == "DISCOUNT":
+                rate = -abs(rate)
+                
+            line_items.append({
+                "name": item.get("description") or f"{item.get('type')} Item",
+                "rate": rate,
+                "quantity": 1,
+                "account_id": "" # Zoho will use default if empty
+            })
+    else:
+        line_items.append({
+            "name": "Purchase Item",
+            "rate": float(data.get("total_amount", 0)),
+            "quantity": 1,
+            "account_id": ""
+        })
+
     payload = {
         "vendor_id": vendor_id,
         "bill_number": data.get("invoice_number") or f"BILL-{int(datetime.now().timestamp())}",
         "date": bill_date,
-        "line_items": [
-            {
-                "name": "Purchase Item",
-                "rate": float(data.get("total_amount", 0)),
-                "quantity": 1,
-                "account_id": "" # Zoho will use default if empty or we can add a setting
-            }
-        ]
+        "line_items": line_items,
+        "ignore_auto_number_generation": True
     }
 
     try:
-        response = make_zoho_request("POST", url, json=payload, params={"organization_id": ORG_ID})
+        response = make_zoho_request("POST", url, json=payload, params={"organization_id": ORG_ID, "ignore_auto_number_generation": "true"})
         return response.json()
     except Exception as e:
         print(f"Zoho Bill API Error: {e}")
@@ -222,16 +311,32 @@ def update_zoho_bill(bill_data, zoho_bill_id):
     elif isinstance(bill_date, str) and "T" in bill_date:
         bill_date = bill_date.split("T")[0]
 
+    # Map breakdown to line items
+    line_items = []
+    breakdown = bill_data.get("breakdown") or bill_data.get("sections_data") or []
+    
+    if breakdown:
+        for item in breakdown:
+            rate = float(item.get("amount", 0))
+            if item.get("type") == "DISCOUNT":
+                rate = -abs(rate)
+                
+            line_items.append({
+                "name": item.get("description") or f"{item.get('type')} Item",
+                "rate": rate,
+                "quantity": 1
+            })
+    else:
+        line_items.append({
+            "name": "Updated Purchase Item",
+            "rate": float(bill_data.get("total_amount", 0)),
+            "quantity": 1
+        })
+
     payload = {
         "bill_number": bill_data.get("invoice_number"),
         "date": bill_date,
-        "line_items": [
-            {
-                "name": "Updated Purchase Item",
-                "rate": float(bill_data.get("total_amount", 0)),
-                "quantity": 1
-            }
-        ]
+        "line_items": line_items
     }
 
     try:
@@ -239,4 +344,24 @@ def update_zoho_bill(bill_data, zoho_bill_id):
         return response.json()
     except Exception as e:
         print(f"Zoho Bill Update Error: {e}")
+        return {"error": str(e)}
+
+def delete_zoho_invoice(zoho_invoice_id):
+    """Deletes a Sales Invoice in Zoho Books"""
+    url = f"https://www.zohoapis.in/books/v3/invoices/{zoho_invoice_id}"
+    try:
+        response = make_zoho_request("DELETE", url, params={"organization_id": ORG_ID})
+        return response.json()
+    except Exception as e:
+        print(f"Zoho Invoice Delete Error: {e}")
+        return {"error": str(e)}
+
+def delete_zoho_bill(zoho_bill_id):
+    """Deletes a Purchase Bill in Zoho Books"""
+    url = f"https://www.zohoapis.in/books/v3/bills/{zoho_bill_id}"
+    try:
+        response = make_zoho_request("DELETE", url, params={"organization_id": ORG_ID})
+        return response.json()
+    except Exception as e:
+        print(f"Zoho Bill Delete Error: {e}")
         return {"error": str(e)}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { getInvoices, deleteInvoice, bulkDeleteInvoices, PDF_VIEW_URL, downloadInvoiceFile } from '../services/api';
+import { getInvoices, deleteInvoice, bulkDeleteInvoices, downloadInvoiceFile, retryInvoice } from '../services/api';
 import {
     Search,
     Filter,
@@ -14,7 +14,8 @@ import {
     Trash2,
     CheckCircle,
     AlertCircle,
-    Clock
+    Clock,
+    RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatCurrency, formatDate } from '../utils/format';
@@ -47,19 +48,25 @@ const InvoiceTable = () => {
         fetchInvoices();
     }, []);
 
-    const fetchInvoices = async () => {
-        setLoading(true);
+    const fetchInvoices = async (showLoading = true) => {
+        if (showLoading) setLoading(true);
         try {
             const res = await getInvoices();
             setInvoices(res.data);
+            
+            // Check if any invoice is still "processing"
+            const hasProcessing = res.data.some(inv => inv.status === 'processing');
+            if (hasProcessing) {
+                // Poll every 3 seconds if items are processing
+                setTimeout(() => fetchInvoices(false), 3000);
+            }
         } catch (err) {
-            // Only log and show toast if it's NOT a 401 (which is handled globally)
             if (err.response?.status !== 401) {
                 console.error(err);
                 toast.error("Failed to load history.");
             }
         } finally {
-            setLoading(false);
+            if (showLoading) setLoading(false);
         }
     };
 
@@ -74,6 +81,17 @@ const InvoiceTable = () => {
                 console.error(err);
                 toast.error('Failed to delete invoice');
             }
+        }
+    };
+
+    const handleRetry = async (id) => {
+        try {
+            await retryInvoice(id);
+            toast.info('Retry started in background');
+            fetchInvoices(false);
+        } catch (err) {
+            console.error(err);
+            toast.error('Failed to start retry');
         }
     };
 
@@ -180,7 +198,9 @@ const InvoiceTable = () => {
                 "Supply (SUPPLY)": supplyTotal || '',
                 "Service/Handling (SERVICE)": serviceTotal || '',
                 "Sections": breakdown.length || 1,
-                "Status": inv.total_amount ? "Processed" : "Pending"
+                "Status": inv.status || 'completed',
+                "Category": inv.category || 'Others',
+                "Confidence": inv.confidence_score ? `${inv.confidence_score}%` : 'N/A'
             };
         });
 
@@ -373,29 +393,31 @@ const InvoiceTable = () => {
                                     />
                                 </th>
                                 <th className="py-3 border-0">Sl. No.</th>
-                                <th className="py-3 border-0">Type</th>
-                                <th className="py-3 border-0 cursor-pointer" onClick={() => handleSort('invoice_number')}>
+                                <th className="py-3 border-0">Process</th>
+                                <th className="py-3 border-0" style={{ minWidth: '90px' }}>Type</th>
+                                <th className="py-3 border-0" style={{ minWidth: '120px' }}>Category</th>
+                                <th className="py-3 border-0 cursor-pointer" onClick={() => handleSort('invoice_number')} style={{ minWidth: '150px' }}>
                                     <div className="d-flex align-items-center">
                                         Invoice # <ArrowUpDown size={14} className="ms-1 opacity-50" />
                                     </div>
                                 </th>
-                                <th className="py-3 border-0 cursor-pointer" onClick={() => handleSort('vendor_name')}>
+                                <th className="py-3 border-0 cursor-pointer" onClick={() => handleSort('vendor_name')} style={{ minWidth: '220px' }}>
                                     <div className="d-flex align-items-center">
                                         Vendor <ArrowUpDown size={14} className="ms-1 opacity-50" />
                                     </div>
                                 </th>
-                                <th className="py-3 border-0 cursor-pointer" onClick={() => handleSort('date')}>
+                                <th className="py-3 border-0 cursor-pointer" onClick={() => handleSort('date')} style={{ minWidth: '120px' }}>
                                     <div className="d-flex align-items-center">
                                         Date <ArrowUpDown size={14} className="ms-1 opacity-50" />
                                     </div>
                                 </th>
-                                <th className="py-3 border-0 cursor-pointer" onClick={() => handleSort('total_amount')}>
+                                <th className="py-3 border-0 cursor-pointer" onClick={() => handleSort('total_amount')} style={{ minWidth: '130px' }}>
                                     <div className="d-flex align-items-center">
                                         Amount <ArrowUpDown size={14} className="ms-1 opacity-50" />
                                     </div>
                                 </th>
-                                <th className="py-3 border-0">Zoho Status</th>
-                                <th className="py-3 border-0">Sections</th>
+                                <th className="py-3 border-0" style={{ minWidth: '150px' }}>Zoho Status</th>
+                                <th className="py-3 border-0" style={{ minWidth: '160px' }}>Sections</th>
                                 <th className="text-end pe-4 py-3 border-0">Actions</th>
                             </tr>
                         </thead>
@@ -417,9 +439,27 @@ const InvoiceTable = () => {
                                         </td>
                                         <td className="text-muted small">{slNo}</td>
                                         <td>
-                                            <span className={`badge ${inv.document_type === 'purchase' ? 'bg-info' : 'bg-primary'} bg-opacity-10 ${inv.document_type === 'purchase' ? 'text-info' : 'text-primary'} border ${inv.document_type === 'purchase' ? 'border-info' : 'border-primary'} border-opacity-25`} style={{ fontSize: '0.65rem', textTransform: 'uppercase' }}>
+                                            {inv.status === 'processing' ? (
+                                                <span className="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 d-inline-flex align-items-center">
+                                                    <RefreshCw size={12} className="me-1 spin" /> Processing
+                                                </span>
+                                            ) : inv.status === 'failed' ? (
+                                                <span className="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 d-inline-flex align-items-center">
+                                                    <AlertCircle size={12} className="me-1" /> Failed
+                                                </span>
+                                            ) : (
+                                                <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 d-inline-flex align-items-center">
+                                                    <CheckCircle size={12} className="me-1" /> Ready
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td>
+                                            <span className={`badge ${inv.document_type === 'purchase' ? 'bg-secondary' : 'bg-primary'} bg-opacity-10 ${inv.document_type === 'purchase' ? 'text-secondary' : 'text-primary'} border ${inv.document_type === 'purchase' ? 'border-secondary' : 'border-primary'} border-opacity-25`} style={{ fontSize: '0.65rem', textTransform: 'uppercase' }}>
                                                 {inv.document_type || 'sales'}
                                             </span>
+                                        </td>
+                                        <td>
+                                            <span className="text-muted small" style={{ fontWeight: 500 }}>{inv.category || 'Others'}</span>
                                         </td>
                                         <td className="fw-medium">{inv.invoice_number || '---'}</td>
                                         <td>{inv.vendor_name || '---'}</td>
@@ -430,7 +470,6 @@ const InvoiceTable = () => {
                                                 {inv.zoho_status === "synced" && (
                                                     <span
                                                         className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 d-inline-flex align-items-center"
-                                                        title={inv.zoho_message}
                                                         style={{ fontSize: '0.7rem', padding: '4px 8px' }}
                                                     >
                                                         <CheckCircle size={12} className="me-1" /> Synced
@@ -439,7 +478,6 @@ const InvoiceTable = () => {
                                                 {inv.zoho_status === "pending" && (
                                                     <span
                                                         className="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 d-inline-flex align-items-center"
-                                                        title={inv.zoho_message}
                                                         style={{ fontSize: '0.7rem', padding: '4px 8px' }}
                                                     >
                                                         <Clock size={12} className="me-1" /> Pending
@@ -448,8 +486,8 @@ const InvoiceTable = () => {
                                                 {inv.zoho_status === "failed" && (
                                                     <span
                                                         className="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 d-inline-flex align-items-center"
-                                                        title={inv.zoho_message}
-                                                        style={{ fontSize: '0.7rem', padding: '4px 8px' }}
+                                                        title={`Failure Reason: ${inv.zoho_message || 'Unknown error'}`}
+                                                        style={{ fontSize: '0.7rem', padding: '4px 8px', cursor: 'help' }}
                                                     >
                                                         <AlertCircle size={12} className="me-1" /> Failed
                                                     </span>
@@ -486,6 +524,15 @@ const InvoiceTable = () => {
                                         </td>
                                         <td className="text-end pe-4">
                                             <div className="d-flex justify-content-end gap-1">
+                                                {(inv.status === 'failed' || inv.zoho_status === 'failed') && (
+                                                    <button 
+                                                        className="btn btn-sm btn-outline-warning rounded-circle p-2" 
+                                                        title="Retry Processing"
+                                                        onClick={() => handleRetry(inv.id)}
+                                                    >
+                                                        <RefreshCw size={16} />
+                                                    </button>
+                                                )}
 
                                                 <Link to={`/result/${inv.id}`} className="btn btn-sm btn-outline-primary rounded-circle p-2" title="View Details">
                                                     <Eye size={16} />

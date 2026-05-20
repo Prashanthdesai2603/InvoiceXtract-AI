@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Save, AlertCircle, CheckCircle, Info, Package, Truck, ChevronDown, ChevronUp, Clock, Eye, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCircle, Info, Package, Truck, ChevronDown, ChevronUp, Clock, Eye, Trash2, Tag } from 'lucide-react';
 import { validateInvoice } from '../utils/validation';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -18,6 +18,27 @@ const TYPE_CONFIG = {
         color: '#0d9488',
         border: 'rgba(20,184,166,0.35)',
         icon: Truck,
+    },
+    TAX: {
+        label: 'TAX',
+        bg: 'rgba(245,158,11,0.12)',
+        color: '#d97706',
+        border: 'rgba(245,158,11,0.35)',
+        icon: Tag,
+    },
+    DISCOUNT: {
+        label: 'DISCOUNT',
+        bg: 'rgba(239,68,68,0.12)',
+        color: '#dc2626',
+        border: 'rgba(239,68,68,0.35)',
+        icon: Tag,
+    },
+    FEE: {
+        label: 'FEE',
+        bg: 'rgba(100,116,139,0.12)',
+        color: '#475569',
+        border: 'rgba(100,116,139,0.35)',
+        icon: Info,
     },
 };
 
@@ -57,11 +78,29 @@ const ResultForm = ({ initialData, onSave, onDelete, saving }) => {
         setFormData(initialData);
     }, [initialData]);
 
+    // ✅ AUTO-SAVE LOGIC
+    useEffect(() => {
+        if (!formData || !formData.id) return;
+        
+        // Don't auto-save if data hasn't changed from initial
+        if (JSON.stringify(formData) === JSON.stringify(initialData)) return;
+
+        const timer = setTimeout(() => {
+            const validationErrors = validateInvoice(formData);
+            if (Object.keys(validationErrors).length === 0) {
+                console.log("DEBUG: Auto-saving changes...");
+                onSave(formData);
+            }
+        }, 2000); // Save after 2 seconds of inactivity
+
+        return () => clearTimeout(timer);
+    }, [formData, onSave, initialData]);
+
     // breakdown array from DB (sections_data field)
     const breakdown = formData?.sections_data || [];
     const hasBreakdown = Array.isArray(breakdown) && breakdown.length > 0;
 
-    // Derived supply / service totals
+    // Derived supply / service / tax / discount / fee totals
     const supplyTotal = breakdown
         .filter(s => s.type === 'SUPPLY')
         .reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
@@ -69,8 +108,20 @@ const ResultForm = ({ initialData, onSave, onDelete, saving }) => {
     const serviceTotal = breakdown
         .filter(s => s.type === 'SERVICE')
         .reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
+    
+    const taxTotal = breakdown
+        .filter(s => s.type === 'TAX')
+        .reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
+    
+    const discountTotal = breakdown
+        .filter(s => s.type === 'DISCOUNT')
+        .reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
+    
+    const feeTotal = breakdown
+        .filter(s => s.type === 'FEE')
+        .reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
 
-    const calculatedTotal = supplyTotal + serviceTotal;
+    const calculatedTotal = supplyTotal + serviceTotal + taxTotal - discountTotal + feeTotal;
     const storedTotal = parseFloat(formData?.total_amount) || 0;
     const totalMismatch = hasBreakdown && calculatedTotal > 0 && Math.abs(calculatedTotal - storedTotal) > 0.50;
 
@@ -183,12 +234,29 @@ const ResultForm = ({ initialData, onSave, onDelete, saving }) => {
                             </div>
                         </div>
                     )}
+
+                    {/* ✅ DUPLICATE WARNING */}
+                    {formData.zoho_message?.includes("Duplicate") && (
+                        <div className="alert d-flex align-items-center mt-3 mb-0 border-0" style={{ 
+                            borderRadius: '12px', 
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            color: '#dc2626',
+                            border: '1px solid rgba(239, 68, 68, 0.2)'
+                        }}>
+                            <AlertCircle size={18} className="me-2" />
+                            <div className="flex-grow-1">
+                                <span className="fw-bold">⚠ Duplicate Detected</span>
+                                <p className="mb-0 small opacity-75">An invoice with this number and vendor already exists.</p>
+                            </div>
+                        </div>
+                    )}
                 </div>
+
 
                 <form onSubmit={handleSubmit} noValidate>
                     <div className="row g-4">
                         {/* Document Type */}
-                        <div className="col-12">
+                        <div className="col-md-6">
                             <label className="form-label fw-semibold small text-uppercase mb-1">Document Type</label>
                             <select
                                 name="document_type"
@@ -200,15 +268,34 @@ const ResultForm = ({ initialData, onSave, onDelete, saving }) => {
                                 <option value="sales">Sales Invoice (Customer)</option>
                                 <option value="purchase">Purchase Bill (Vendor)</option>
                             </select>
-                            <div className="text-muted small mt-1">
-                                {formData.document_type === 'purchase' 
-                                    ? "This will be synced as a 'Bill' in Zoho Books." 
-                                    : "This will be synced as an 'Invoice' in Zoho Books."}
+                        </div>
+
+                        {/* Category */}
+                        <div className="col-md-6">
+                            <label className="form-label fw-semibold small text-uppercase mb-1">Category</label>
+                            <div className="input-group">
+                                <span className="input-group-text bg-light border-end-0"><Tag size={16} /></span>
+                                <select
+                                    name="category"
+                                    className={getInputClass('category')}
+                                    value={formData.category || 'Others'}
+                                    onChange={handleChange}
+                                    onBlur={handleBlur}
+                                >
+                                    <option value="Others">Others</option>
+                                    <option value="Office Expense">Office Expense</option>
+                                    <option value="Travel">Travel</option>
+                                    <option value="IT Equipment">IT Equipment</option>
+                                    <option value="Food & Beverage">Food & Beverage</option>
+                                    <option value="Utilities">Utilities</option>
+                                    <option value="Rent">Rent</option>
+                                    <option value="Marketing">Marketing</option>
+                                </select>
                             </div>
                         </div>
 
                         {/* Vendor Name */}
-                        <div className="col-12">
+                        <div className="col-md-6">
                             <label className="form-label fw-semibold small text-uppercase mb-1">Vendor Name</label>
                             <input
                                 type="text"
@@ -232,8 +319,22 @@ const ResultForm = ({ initialData, onSave, onDelete, saving }) => {
                             </AnimatePresence>
                         </div>
 
+                        {/* Customer Name */}
+                        <div className="col-md-6">
+                            <label className="form-label fw-semibold small text-uppercase mb-1">Customer Name</label>
+                            <input
+                                type="text"
+                                name="customer_name"
+                                className={getInputClass('customer_name')}
+                                placeholder="e.g. John Doe"
+                                value={formData.customer_name || ''}
+                                onChange={handleChange}
+                                onBlur={handleBlur}
+                            />
+                        </div>
+
                         {/* Invoice Number */}
-                        <div className="col-12">
+                        <div className="col-md-6">
                             <label className="form-label fw-semibold small text-uppercase mb-1">Invoice Number</label>
                             <input
                                 type="text"
@@ -255,6 +356,20 @@ const ResultForm = ({ initialData, onSave, onDelete, saving }) => {
                                     </motion.div>
                                 )}
                             </AnimatePresence>
+                        </div>
+
+                        {/* Order ID */}
+                        <div className="col-md-6">
+                            <label className="form-label fw-semibold small text-uppercase mb-1">Order ID / Ref</label>
+                            <input
+                                type="text"
+                                name="order_id"
+                                className={getInputClass('order_id')}
+                                placeholder="e.g. ORD-12345"
+                                value={formData.order_id || ''}
+                                onChange={handleChange}
+                                onBlur={handleBlur}
+                            />
                         </div>
 
                         {/* Date */}
@@ -433,6 +548,34 @@ const ResultForm = ({ initialData, onSave, onDelete, saving }) => {
                                                     Service: ₹{serviceTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                                                 </div>
                                             )}
+                                            {taxTotal > 0 && (
+                                                <div style={{
+                                                    padding: '6px 14px',
+                                                    borderRadius: '8px',
+                                                    background: 'rgba(245,158,11,0.1)',
+                                                    border: '1px solid rgba(245,158,11,0.25)',
+                                                    fontSize: '0.75rem',
+                                                    color: '#d97706',
+                                                    fontWeight: 600,
+                                                }}>
+                                                    <Tag size={12} style={{ marginRight: 5, verticalAlign: 'middle' }} />
+                                                    Tax: ₹{taxTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                                </div>
+                                            )}
+                                            {discountTotal > 0 && (
+                                                <div style={{
+                                                    padding: '6px 14px',
+                                                    borderRadius: '8px',
+                                                    background: 'rgba(239,68,68,0.1)',
+                                                    border: '1px solid rgba(239,68,68,0.25)',
+                                                    fontSize: '0.75rem',
+                                                    color: '#dc2626',
+                                                    fontWeight: 600,
+                                                }}>
+                                                    <Tag size={12} style={{ marginRight: 5, verticalAlign: 'middle' }} />
+                                                    Disc: -₹{discountTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Breakdown rows */}
@@ -572,9 +715,9 @@ const ResultForm = ({ initialData, onSave, onDelete, saving }) => {
                             {saving ? (
                                 <span className="spinner-border spinner-border-sm me-2"></span>
                             ) : (
-                                <Save size={20} className="me-2" />
+                                <CheckCircle size={20} className="me-2" />
                             )}
-                            {saving ? 'Processing...' : 'Confirm & Save Invoice'}
+                            {saving ? 'Saving...' : 'All Details Verified'}
                         </button>
                     </div>
                 </form>
