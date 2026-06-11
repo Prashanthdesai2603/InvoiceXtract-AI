@@ -108,6 +108,7 @@ const ProcessingOverlay = ({ currentStep: manualStep, status: manualStatus, file
 
         pollStatus();
         return () => { isSubscribed = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [processingResults]);
 
     return (
@@ -167,7 +168,7 @@ const ProcessingOverlay = ({ currentStep: manualStep, status: manualStatus, file
                     </div>
                 </div>
 
-                {status === 'failed' ? (
+                {manualStatus === 'failed' ? (
                     <motion.div 
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}

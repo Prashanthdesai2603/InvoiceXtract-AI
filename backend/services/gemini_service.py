@@ -274,7 +274,7 @@ RULES:
 
         return True
 
-    def extract_invoice_data(self, text: str) -> dict:
+    def extract_invoice_data(self, text: str) -> list:
         """Extract data from raw text with retry logic."""
         if not self.client:
             raise ValueError("Gemini API Key is missing. Please add GEMINI_API_KEY to your .env file.")
@@ -290,7 +290,7 @@ RULES:
 
                 if not response or not hasattr(response, "text"):
                     print("DEBUG: Gemini returned empty or invalid response for text")
-                    return self._get_fallback_data()
+                    return [self._get_fallback_data()]
 
                 return self._extract_json(response.text.strip(), raw_text=text)
 
@@ -301,9 +301,9 @@ RULES:
                     time.sleep(wait_time)
                     continue
                 print(f"ERROR: Gemini text extraction failed: {e}")
-                return self._get_fallback_data()
+                return [self._get_fallback_data()]
 
-    def extract_from_pdf(self, file_bytes: bytes) -> dict:
+    def extract_from_pdf(self, file_bytes: bytes) -> list:
         """Extract data directly from PDF bytes using Gemini with retry logic."""
         if not self.client:
             raise ValueError("Gemini API Key is missing. Please add GEMINI_API_KEY to your .env file.")
@@ -350,9 +350,9 @@ RULES:
                     raise e
 
                 print(f"ERROR: Gemini PDF extraction failed: {e}")
-                return self._get_fallback_data()
+                return [self._get_fallback_data()]
 
-    def extract_from_image(self, file_bytes: bytes, mime_type: str) -> dict:
+    def extract_from_image(self, file_bytes: bytes, mime_type: str) -> list:
         """Extract data directly from image bytes using Gemini with retry logic."""
         if not self.client:
             raise ValueError("Gemini API Key is missing. Please add GEMINI_API_KEY to your .env file.")
@@ -398,7 +398,7 @@ RULES:
                     raise e
 
                 print(f"ERROR: Gemini Image extraction failed: {e}")
-                return self._get_fallback_data()
+                return [self._get_fallback_data()]
 
     def _get_fallback_data(self):
         return {

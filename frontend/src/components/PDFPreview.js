@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Expand, Download, Loader2, AlertTriangle } from 'lucide-react';
+import { FileText, Download, Loader2, AlertTriangle } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { PDF_VIEW_URL, downloadInvoiceFile } from '../services/api';
+import { downloadInvoiceFile } from '../services/api';
 
 const PDFPreview = ({ invoiceId, fileName }) => {
     const [loading, setLoading] = useState(true);
@@ -34,6 +34,7 @@ const PDFPreview = ({ invoiceId, fileName }) => {
                 window.URL.revokeObjectURL(previewUrl);
             }
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [invoiceId]);
 
     const handleDownload = () => {

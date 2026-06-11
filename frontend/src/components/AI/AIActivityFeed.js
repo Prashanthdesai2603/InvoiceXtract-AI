@@ -62,6 +62,7 @@ const AIActivityFeed = ({ currentStep, realLogs = [] }) => {
                 return () => clearInterval(interval);
             }
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentStep, realLogs]);
 
     useEffect(() => {

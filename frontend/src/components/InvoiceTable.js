@@ -46,6 +46,7 @@ const InvoiceTable = () => {
 
     useEffect(() => {
         fetchInvoices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const fetchInvoices = async (showLoading = true) => {
@@ -239,61 +240,72 @@ const InvoiceTable = () => {
     }, [invoices]);
 
     if (loading) return (
-        <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '60vh' }}>
-            <div className="spinner-border text-primary"></div>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh', flexDirection: 'column', gap: 12 }}>
+            <div className="spinner spinner-dark" style={{ width: 28, height: 28, borderWidth: 3 }} />
+            <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading invoices...</p>
         </div>
     );
 
     return (
-        <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="py-4"
-        >
-            <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
-                <h2 className="fw-bold mb-0">Invoice History</h2>
-                <div className="d-flex gap-2">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            {/* Page Header */}
+            <div className="page-header">
+                <div>
+                    <h1 className="page-title">Invoice History</h1>
+                    <p className="page-subtitle">{sortedAndFilteredInvoices.length} invoice{sortedAndFilteredInvoices.length !== 1 ? 's' : ''} total</p>
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <button
                         onClick={() => setShowFilters(!showFilters)}
-                        className={`btn d-flex align-items-center ${showFilters ? 'btn-primary' : 'btn-outline-secondary'}`}
+                        className={`btn ${showFilters ? 'btn-primary' : 'btn-secondary'}`}
                     >
-                        <Filter size={18} className="me-2" /> Filters
+                        <Filter size={15} />
+                        Filters
+                        {showFilters && <span className="badge" style={{ background: 'rgba(255,255,255,0.25)', color: 'white', borderColor: 'transparent', fontSize: 11 }}>On</span>}
                     </button>
                     <button
                         onClick={handleExportCSV}
-                        className="btn btn-outline-success d-flex align-items-center"
+                        className="btn btn-success"
                         disabled={sortedAndFilteredInvoices.length === 0}
                     >
-                        <FileSpreadsheet size={18} className="me-2" /> Export CSV
+                        <FileSpreadsheet size={15} />
+                        Export CSV
                     </button>
-                    {selectedIds.length > 0 && (
-                        <button
-                            onClick={handleBulkDelete}
-                            className="btn btn-danger d-flex align-items-center"
-                        >
-                            <Trash2 size={18} className="me-2" /> Delete ({selectedIds.length})
-                        </button>
-                    )}
+                    <AnimatePresence>
+                        {selectedIds.length > 0 && (
+                            <motion.button
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.9 }}
+                                onClick={handleBulkDelete}
+                                className="btn btn-danger"
+                            >
+                                <Trash2 size={15} />
+                                Delete ({selectedIds.length})
+                            </motion.button>
+                        )}
+                    </AnimatePresence>
                 </div>
             </div>
 
-            {/* Filters Section */}
+            {/* Filters Panel */}
             <AnimatePresence>
                 {showFilters && (
                     <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        className="overflow-hidden mb-4"
+                        style={{ overflow: 'hidden', marginBottom: 16 }}
                     >
-                        <div className="card glass-card p-4">
-                            <div className="row g-3">
-                                <div className="col-md-3">
-                                    <label className="form-label small fw-bold text-uppercase">Vendor</label>
-                                    <div className="input-group input-group-sm">
-                                        <span className="input-group-text bg-transparent border-end-0"><Building2 size={14} /></span>
+                        <div className="card" style={{ padding: 20 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
+                                <div className="form-group" style={{ margin: 0 }}>
+                                    <label className="form-label">Vendor</label>
+                                    <div className="input-with-icon">
+                                        <Building2 size={14} className="input-icon-left" />
                                         <select
-                                            className="form-select border-start-0"
+                                            className="form-input"
+                                            style={{ paddingLeft: 36 }}
                                             value={vendorFilter}
                                             onChange={(e) => setVendorFilter(e.target.value)}
                                         >
@@ -302,123 +314,107 @@ const InvoiceTable = () => {
                                         </select>
                                     </div>
                                 </div>
-                                <div className="col-md-5">
-                                    <label className="form-label small fw-bold text-uppercase">Date Range</label>
-                                    <div className="d-flex gap-2">
-                                        <input
-                                            type="date"
-                                            className="form-control form-control-sm"
-                                            value={dateRange.start}
-                                            onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                                        />
-                                        <span className="align-self-center text-muted">-</span>
-                                        <input
-                                            type="date"
-                                            className="form-control form-control-sm"
-                                            value={dateRange.end}
-                                            onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                                        />
-                                    </div>
+                                <div className="form-group" style={{ margin: 0 }}>
+                                    <label className="form-label">Date From</label>
+                                    <input
+                                        type="date"
+                                        className="form-input"
+                                        value={dateRange.start}
+                                        onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                                    />
                                 </div>
-                                <div className="col-md-4">
-                                    <label className="form-label small fw-bold text-uppercase">Amount Range</label>
-                                    <div className="d-flex gap-2">
-                                        <div className="input-group input-group-sm">
-                                            <span className="input-group-text bg-transparent border-end-0">₹</span>
-                                            <input
-                                                type="number"
-                                                placeholder="Min"
-                                                className="form-control border-start-0"
-                                                value={amountRange.min}
-                                                onChange={(e) => setAmountRange({ ...amountRange, min: e.target.value })}
-                                            />
-                                        </div>
-                                        <span className="align-self-center text-muted">-</span>
-                                        <div className="input-group input-group-sm">
-                                            <span className="input-group-text bg-transparent border-end-0">₹</span>
-                                            <input
-                                                type="number"
-                                                placeholder="Max"
-                                                className="form-control border-start-0"
-                                                value={amountRange.max}
-                                                onChange={(e) => setAmountRange({ ...amountRange, max: e.target.value })}
-                                            />
-                                        </div>
-                                    </div>
+                                <div className="form-group" style={{ margin: 0 }}>
+                                    <label className="form-label">Date To</label>
+                                    <input
+                                        type="date"
+                                        className="form-input"
+                                        value={dateRange.end}
+                                        onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                                    />
                                 </div>
-                                <div className="col-12 text-end">
-                                    <button
-                                        className="btn btn-link text-muted btn-sm"
-                                        onClick={() => {
-                                            setVendorFilter('');
-                                            setDateRange({ start: '', end: '' });
-                                            setAmountRange({ min: '', max: '' });
-                                        }}
-                                    >
-                                        Clear All Filters
-                                    </button>
+                                <div className="form-group" style={{ margin: 0 }}>
+                                    <label className="form-label">Min Amount (₹)</label>
+                                    <input
+                                        type="number"
+                                        placeholder="0"
+                                        className="form-input"
+                                        value={amountRange.min}
+                                        onChange={(e) => setAmountRange({ ...amountRange, min: e.target.value })}
+                                    />
                                 </div>
+                                <div className="form-group" style={{ margin: 0 }}>
+                                    <label className="form-label">Max Amount (₹)</label>
+                                    <input
+                                        type="number"
+                                        placeholder="Any"
+                                        className="form-input"
+                                        value={amountRange.max}
+                                        onChange={(e) => setAmountRange({ ...amountRange, max: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+                            <div style={{ marginTop: 12, textAlign: 'right' }}>
+                                <button
+                                    className="btn btn-ghost btn-sm"
+                                    style={{ color: 'var(--danger-text)' }}
+                                    onClick={() => {
+                                        setVendorFilter('');
+                                        setDateRange({ start: '', end: '' });
+                                        setAmountRange({ min: '', max: '' });
+                                    }}
+                                >
+                                    Clear All Filters
+                                </button>
                             </div>
                         </div>
                     </motion.div>
                 )}
             </AnimatePresence>
 
-            {/* Search Bar */}
-            <div className="card glass-card mb-4 p-2 bg-white bg-opacity-50">
-                <div className="input-group">
-                    <span className="input-group-text bg-transparent border-0"><Search size={18} className="text-muted" /></span>
-                    <input
-                        type="text"
-                        className="form-control border-0 bg-transparent"
-                        placeholder="Search by Invoice #, Vendor Name..."
-                        value={search}
-                        onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
-                    />
-                </div>
+            {/* Search */}
+            <div className="search-bar" style={{ marginBottom: 16 }}>
+                <Search size={15} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                <input
+                    type="text"
+                    placeholder="Search by Invoice # or Vendor name..."
+                    value={search}
+                    onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
+                />
             </div>
 
             {/* Table */}
-            <div className="card glass-card overflow-hidden shadow-sm">
-                <div className="table-responsive">
-                    <table className="table table-hover align-middle mb-0">
-                        <thead className="bg-light bg-opacity-75">
+            <div className="data-table-wrap">
+                <div style={{ overflowX: 'auto' }}>
+                    <table className="data-table">
+                        <thead>
                             <tr>
-                                <th className="ps-4 py-3 border-0" style={{ width: '40px' }}>
+                                <th style={{ width: 44, paddingLeft: 20 }}>
                                     <input
                                         type="checkbox"
-                                        className="form-check-input cursor-pointer"
+                                        className="custom-checkbox"
                                         onChange={handleSelectAll}
                                         checked={paginatedInvoices.length > 0 && selectedIds.length === paginatedInvoices.length}
                                     />
                                 </th>
-                                <th className="py-3 border-0">Sl. No.</th>
-                                <th className="py-3 border-0">Process</th>
-                                <th className="py-3 border-0" style={{ minWidth: '90px' }}>Type</th>
-                                <th className="py-3 border-0" style={{ minWidth: '120px' }}>Category</th>
-                                <th className="py-3 border-0 cursor-pointer" onClick={() => handleSort('invoice_number')} style={{ minWidth: '150px' }}>
-                                    <div className="d-flex align-items-center">
-                                        Invoice # <ArrowUpDown size={14} className="ms-1 opacity-50" />
-                                    </div>
+                                <th>#</th>
+                                <th>Status</th>
+                                <th>Type</th>
+                                <th>Category</th>
+                                <th className="sortable" onClick={() => handleSort('invoice_number')} style={{ minWidth: 140 }}>
+                                    Invoice # <ArrowUpDown size={12} style={{ marginLeft: 4, opacity: 0.5 }} />
                                 </th>
-                                <th className="py-3 border-0 cursor-pointer" onClick={() => handleSort('vendor_name')} style={{ minWidth: '220px' }}>
-                                    <div className="d-flex align-items-center">
-                                        Vendor <ArrowUpDown size={14} className="ms-1 opacity-50" />
-                                    </div>
+                                <th className="sortable" onClick={() => handleSort('vendor_name')} style={{ minWidth: 200 }}>
+                                    Vendor <ArrowUpDown size={12} style={{ marginLeft: 4, opacity: 0.5 }} />
                                 </th>
-                                <th className="py-3 border-0 cursor-pointer" onClick={() => handleSort('date')} style={{ minWidth: '120px' }}>
-                                    <div className="d-flex align-items-center">
-                                        Date <ArrowUpDown size={14} className="ms-1 opacity-50" />
-                                    </div>
+                                <th className="sortable" onClick={() => handleSort('date')} style={{ minWidth: 110 }}>
+                                    Date <ArrowUpDown size={12} style={{ marginLeft: 4, opacity: 0.5 }} />
                                 </th>
-                                <th className="py-3 border-0 cursor-pointer" onClick={() => handleSort('total_amount')} style={{ minWidth: '130px' }}>
-                                    <div className="d-flex align-items-center">
-                                        Amount <ArrowUpDown size={14} className="ms-1 opacity-50" />
-                                    </div>
+                                <th className="sortable" onClick={() => handleSort('total_amount')} style={{ minWidth: 120 }}>
+                                    Amount <ArrowUpDown size={12} style={{ marginLeft: 4, opacity: 0.5 }} />
                                 </th>
-                                <th className="py-3 border-0" style={{ minWidth: '150px' }}>Zoho Status</th>
-                                <th className="py-3 border-0" style={{ minWidth: '160px' }}>Sections</th>
-                                <th className="text-end pe-4 py-3 border-0">Actions</th>
+                                <th style={{ minWidth: 140 }}>Zoho Status</th>
+                                <th style={{ minWidth: 140 }}>Sections</th>
+                                <th style={{ textAlign: 'right', paddingRight: 20 }}>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -428,128 +424,108 @@ const InvoiceTable = () => {
                                 const sectionCount = breakdown.length;
                                 const hasService = breakdown.some(s => s.type === 'SERVICE');
                                 return (
-                                    <tr key={inv.id} className={selectedIds.includes(inv.id) ? 'table-active' : ''}>
-                                        <td className="ps-4">
+                                    <tr key={inv.id} className={selectedIds.includes(inv.id) ? 'selected' : ''}>
+                                        <td style={{ paddingLeft: 20 }}>
                                             <input
                                                 type="checkbox"
-                                                className="form-check-input cursor-pointer"
+                                                className="custom-checkbox"
                                                 checked={selectedIds.includes(inv.id)}
                                                 onChange={() => handleSelectOne(inv.id)}
                                             />
                                         </td>
-                                        <td className="text-muted small">{slNo}</td>
+                                        <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{slNo}</td>
                                         <td>
                                             {inv.status === 'processing' ? (
-                                                <span className="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 d-inline-flex align-items-center">
-                                                    <RefreshCw size={12} className="me-1 spin" /> Processing
+                                                <span className="badge badge-info">
+                                                    <RefreshCw size={10} style={{ animation: 'spin 1s linear infinite' }} />
+                                                    Processing
                                                 </span>
                                             ) : inv.status === 'failed' ? (
-                                                <span className="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 d-inline-flex align-items-center">
-                                                    <AlertCircle size={12} className="me-1" /> Failed
+                                                <span className="badge badge-danger">
+                                                    <AlertCircle size={10} /> Failed
                                                 </span>
                                             ) : (
-                                                <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 d-inline-flex align-items-center">
-                                                    <CheckCircle size={12} className="me-1" /> Ready
+                                                <span className="badge badge-success">
+                                                    <CheckCircle size={10} /> Ready
                                                 </span>
                                             )}
                                         </td>
                                         <td>
-                                            <span className={`badge ${inv.document_type === 'purchase' ? 'bg-secondary' : 'bg-primary'} bg-opacity-10 ${inv.document_type === 'purchase' ? 'text-secondary' : 'text-primary'} border ${inv.document_type === 'purchase' ? 'border-secondary' : 'border-primary'} border-opacity-25`} style={{ fontSize: '0.65rem', textTransform: 'uppercase' }}>
+                                            <span className={`badge ${inv.document_type === 'purchase' ? 'badge-neutral' : 'badge-brand'}`} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                                                 {inv.document_type || 'sales'}
                                             </span>
                                         </td>
-                                        <td>
-                                            <span className="text-muted small" style={{ fontWeight: 500 }}>{inv.category || 'Others'}</span>
+                                        <td style={{ color: 'var(--text-secondary)', fontSize: 12, fontWeight: 500 }}>
+                                            {inv.category || 'Others'}
                                         </td>
-                                        <td className="fw-medium">{inv.invoice_number || '---'}</td>
-                                        <td>{inv.vendor_name || '---'}</td>
-                                        <td className="text-muted">{formatDate(inv.date)}</td>
-                                        <td className="fw-bold">{formatCurrency(inv.total_amount)}</td>
+                                        <td style={{ fontWeight: 600 }}>{inv.invoice_number || '—'}</td>
+                                        <td style={{ color: 'var(--text-secondary)' }}>{inv.vendor_name || '—'}</td>
+                                        <td style={{ color: 'var(--text-muted)' }}>{formatDate(inv.date)}</td>
+                                        <td style={{ fontWeight: 700 }}>{formatCurrency(inv.total_amount)}</td>
                                         <td>
-                                            <div className="d-flex align-items-center gap-2">
-                                                {inv.zoho_status === "synced" && (
-                                                    <span
-                                                        className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 d-inline-flex align-items-center"
-                                                        style={{ fontSize: '0.7rem', padding: '4px 8px' }}
-                                                    >
-                                                        <CheckCircle size={12} className="me-1" /> Synced
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                {inv.zoho_status === 'synced' && (
+                                                    <span className="badge badge-success"><CheckCircle size={10} /> Synced</span>
+                                                )}
+                                                {inv.zoho_status === 'pending' && (
+                                                    <span className="badge badge-warning"><Clock size={10} /> Pending</span>
+                                                )}
+                                                {inv.zoho_status === 'failed' && (
+                                                    <span className="badge badge-danger" title={`Failure: ${inv.zoho_message || 'Unknown'}`} style={{ cursor: 'help' }}>
+                                                        <AlertCircle size={10} /> Failed
                                                     </span>
                                                 )}
-                                                {inv.zoho_status === "pending" && (
-                                                    <span
-                                                        className="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 d-inline-flex align-items-center"
-                                                        style={{ fontSize: '0.7rem', padding: '4px 8px' }}
-                                                    >
-                                                        <Clock size={12} className="me-1" /> Pending
-                                                    </span>
-                                                )}
-                                                {inv.zoho_status === "failed" && (
-                                                    <span
-                                                        className="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 d-inline-flex align-items-center"
-                                                        title={`Failure Reason: ${inv.zoho_message || 'Unknown error'}`}
-                                                        style={{ fontSize: '0.7rem', padding: '4px 8px', cursor: 'help' }}
-                                                    >
-                                                        <AlertCircle size={12} className="me-1" /> Failed
-                                                    </span>
-                                                )}
-
                                                 {inv.zoho_invoice_id && (
                                                     <a
                                                         href={`https://books.zoho.in/app#/${inv.document_type === 'purchase' ? 'bills' : 'invoices'}/${inv.zoho_invoice_id}`}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="text-primary d-flex align-items-center text-decoration-none small"
+                                                        style={{ color: 'var(--brand-500)', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 3 }}
                                                         title="View in Zoho Books"
                                                     >
-                                                        <Eye size={12} className="me-1" /> Zoho
+                                                        <Eye size={11} /> Zoho
                                                     </a>
                                                 )}
                                             </div>
                                         </td>
                                         <td>
                                             {sectionCount > 1 ? (
-                                                <span className="badge rounded-pill" style={{
-                                                    background: 'linear-gradient(135deg,rgba(99,102,241,0.15),rgba(20,184,166,0.15))',
-                                                    color: '#4f46e5',
-                                                    border: '1px solid rgba(99,102,241,0.3)',
-                                                    fontWeight: 700,
-                                                    fontSize: '0.7rem',
-                                                    padding: '4px 10px'
-                                                }}>
+                                                <span className="badge badge-brand">
                                                     {sectionCount} {hasService ? '· SUPPLY+SERVICE' : 'sections'}
                                                 </span>
                                             ) : (
-                                                <span className="text-muted small">—</span>
+                                                <span style={{ color: 'var(--text-muted)' }}>—</span>
                                             )}
                                         </td>
-                                        <td className="text-end pe-4">
-                                            <div className="d-flex justify-content-end gap-1">
+                                        <td style={{ textAlign: 'right', paddingRight: 16 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
                                                 {(inv.status === 'failed' || inv.zoho_status === 'failed') && (
-                                                    <button 
-                                                        className="btn btn-sm btn-outline-warning rounded-circle p-2" 
+                                                    <button
+                                                        className="btn btn-ghost btn-icon"
                                                         title="Retry Processing"
                                                         onClick={() => handleRetry(inv.id)}
+                                                        style={{ color: 'var(--warning-text)' }}
                                                     >
-                                                        <RefreshCw size={16} />
+                                                        <RefreshCw size={14} />
                                                     </button>
                                                 )}
-
-                                                <Link to={`/result/${inv.id}`} className="btn btn-sm btn-outline-primary rounded-circle p-2" title="View Details">
-                                                    <Eye size={16} />
+                                                <Link to={`/result/${inv.id}`} className="btn btn-ghost btn-icon" title="View Details">
+                                                    <Eye size={14} />
                                                 </Link>
                                                 <button
-                                                    className="btn btn-sm btn-outline-secondary rounded-circle p-2"
+                                                    className="btn btn-ghost btn-icon"
                                                     title="Download PDF"
                                                     onClick={() => handleDownloadPDF(inv.id, inv.file_name)}
                                                 >
-                                                    <Download size={16} />
+                                                    <Download size={14} />
                                                 </button>
                                                 <button
-                                                    className="btn btn-sm btn-outline-danger rounded-circle p-2"
+                                                    className="btn btn-ghost btn-icon"
                                                     title="Delete Invoice"
+                                                    style={{ color: 'var(--danger-text)' }}
                                                     onClick={() => handleDelete(inv.id)}
                                                 >
-                                                    <Trash2 size={16} />
+                                                    <Trash2 size={14} />
                                                 </button>
                                             </div>
                                         </td>
@@ -558,10 +534,17 @@ const InvoiceTable = () => {
                             })}
                             {paginatedInvoices.length === 0 && (
                                 <tr>
-                                    <td colSpan="10" className="text-center py-5">
-                                        <div className="text-muted py-4">
-                                            <p className="fs-4 mb-0">No matching invoices found</p>
-                                            <p className="small">Try adjusting your filters or search terms</p>
+                                    <td colSpan={12}>
+                                        <div className="empty-state">
+                                            <div className="empty-state-icon">
+                                                <Search size={22} />
+                                            </div>
+                                            <p style={{ fontWeight: 600, margin: '0 0 4px', color: 'var(--text-secondary)' }}>
+                                                No matching invoices
+                                            </p>
+                                            <p style={{ fontSize: 13, margin: 0 }}>
+                                                Try adjusting your filters or search terms
+                                            </p>
                                         </div>
                                     </td>
                                 </tr>
@@ -572,39 +555,57 @@ const InvoiceTable = () => {
 
                 {/* Pagination */}
                 {totalPages > 1 && (
-                    <div className="card-footer bg-white py-3 d-flex justify-content-between align-items-center">
-                        <span className="text-muted small">
-                            Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, sortedAndFilteredInvoices.length)} of {sortedAndFilteredInvoices.length} entries
+                    <div style={{
+                        padding: '14px 20px',
+                        borderTop: '1px solid var(--border-color)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: 'var(--bg-subtle)',
+                        gap: 12,
+                        flexWrap: 'wrap'
+                    }}>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                            Showing {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, sortedAndFilteredInvoices.length)} of {sortedAndFilteredInvoices.length}
                         </span>
-                        <nav>
-                            <ul className="pagination pagination-sm mb-0">
-                                <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
-                                    <button className="page-link" onClick={() => setCurrentPage(currentPage - 1)}>
-                                        <ChevronLeft size={16} />
+                        <div className="pagination">
+                            <button
+                                className="page-btn"
+                                onClick={() => setCurrentPage(currentPage - 1)}
+                                disabled={currentPage === 1}
+                            >
+                                <ChevronLeft size={14} />
+                            </button>
+                            {[...Array(Math.min(totalPages, 7))].map((_, i) => {
+                                const page = i + 1;
+                                return (
+                                    <button
+                                        key={page}
+                                        className={`page-btn ${currentPage === page ? 'active' : ''}`}
+                                        onClick={() => setCurrentPage(page)}
+                                    >
+                                        {page}
                                     </button>
-                                </li>
-                                {[...Array(totalPages)].map((_, i) => (
-                                    <li key={i} className={`page-item ${currentPage === i + 1 ? 'active' : ''}`}>
-                                        <button className="page-link" onClick={() => setCurrentPage(i + 1)}>{i + 1}</button>
-                                    </li>
-                                ))}
-                                <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
-                                    <button className="page-link" onClick={() => setCurrentPage(currentPage + 1)}>
-                                        <ChevronRight size={16} />
-                                    </button>
-                                </li>
-                            </ul>
-                        </nav>
+                                );
+                            })}
+                            {totalPages > 7 && <span style={{ color: 'var(--text-muted)', padding: '0 4px' }}>…</span>}
+                            <button
+                                className="page-btn"
+                                onClick={() => setCurrentPage(currentPage + 1)}
+                                disabled={currentPage === totalPages}
+                            >
+                                <ChevronRight size={14} />
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>
 
-            <style dangerouslySetInnerHTML={{
-                __html: `
-                .cursor-pointer { cursor: pointer; }
-                .pagination .page-link { border: none; color: #64748b; margin: 0 2px; border-radius: 6px; }
-                .pagination .page-item.active .page-link { background: var(--primary-gradient); color: white; }
-            `}} />
+            <style>{`
+                @keyframes spin { to { transform: rotate(360deg); } }
+                .sortable { cursor: pointer; }
+                .sortable:hover { color: var(--text-primary) !important; }
+            `}</style>
         </motion.div>
     );
 };

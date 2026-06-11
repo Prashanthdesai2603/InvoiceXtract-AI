@@ -1,13 +1,11 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import 'react-toastify/dist/ReactToastify.css';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 
-import Navbar from './components/Navbar';
+import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import UploadForm from './components/UploadForm';
 import ResultView from './components/ResultView';
@@ -17,45 +15,68 @@ import Signup from './pages/Signup';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function AppContent() {
+    const location = useLocation();
+    const isAuthPage = location.pathname === '/' || location.pathname === '/signup';
+
     return (
-        <div className="App min-vh-100 transition-all duration-300">
-            <Navbar />
-            <main className="container-fluid px-md-5 pb-5">
+        <div className="app-shell">
+            <Sidebar />
+            <div className={`main-content ${isAuthPage ? '' : ''}`}
+                style={isAuthPage ? { marginLeft: 0, width: '100%' } : {}}>
                 <Routes>
                     {/* Public Routes */}
                     <Route path="/" element={<Login />} />
                     <Route path="/signup" element={<Signup />} />
-                    
+
                     {/* Protected Routes */}
                     <Route path="/dashboard" element={
                         <ProtectedRoute>
-                            <Dashboard />
+                            <div className="page-container">
+                                <Dashboard />
+                            </div>
                         </ProtectedRoute>
                     } />
-                    
+
                     <Route path="/upload" element={
                         <ProtectedRoute>
-                            <UploadForm />
+                            <div className="page-container">
+                                <UploadForm />
+                            </div>
                         </ProtectedRoute>
                     } />
-                    
+
                     <Route path="/result/:id" element={
                         <ProtectedRoute>
-                            <ResultView />
+                            <div className="page-container">
+                                <ResultView />
+                            </div>
                         </ProtectedRoute>
                     } />
-                    
+
                     <Route path="/history" element={
                         <ProtectedRoute>
-                            <InvoiceTable />
+                            <div className="page-container">
+                                <InvoiceTable />
+                            </div>
                         </ProtectedRoute>
                     } />
-                    
+
                     {/* Redirect unknown routes */}
                     <Route path="*" element={<Navigate to="/" />} />
                 </Routes>
-            </main>
-            <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} />
+            </div>
+
+            <ToastContainer
+                position="top-right"
+                autoClose={3000}
+                hideProgressBar={false}
+                theme="colored"
+                toastStyle={{
+                    fontFamily: 'Inter, sans-serif',
+                    fontSize: '13.5px',
+                    borderRadius: '10px',
+                }}
+            />
         </div>
     );
 }

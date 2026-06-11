@@ -13,10 +13,12 @@ export const ThemeProvider = ({ children }) => {
         if (darkMode) {
             root.classList.add('dark');
             root.setAttribute('data-bs-theme', 'dark');
+            root.setAttribute('data-theme', 'dark');
             localStorage.setItem('theme', 'dark');
         } else {
             root.classList.remove('dark');
             root.setAttribute('data-bs-theme', 'light');
+            root.setAttribute('data-theme', 'light');
             localStorage.setItem('theme', 'light');
         }
     }, [darkMode]);
