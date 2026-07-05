@@ -54,16 +54,16 @@ const Signup = () => {
     };
 
     const rules = [
-        { key: 'length',    label: 'At least 8 characters' },
+        { key: 'length', label: 'At least 8 characters' },
         { key: 'uppercase', label: 'One uppercase letter' },
         { key: 'lowercase', label: 'One lowercase letter' },
-        { key: 'number',    label: 'One number' },
-        { key: 'special',   label: 'One special character (@, #, etc.)' },
+        { key: 'number', label: 'One number' },
+        { key: 'special', label: 'One special character (@, #, etc.)' },
     ];
 
     const features = [
-        { icon: Zap,       text: 'Extract invoice data in seconds' },
-        { icon: Shield,    text: 'Enterprise-grade security' },
+        { icon: Zap, text: 'Extract invoice data in seconds' },
+        { icon: Shield, text: 'Enterprise-grade security' },
         { icon: BarChart3, text: 'Built-in analytics & reporting' },
     ];
 
@@ -131,7 +131,7 @@ const Signup = () => {
 
                 <div style={{ position: 'relative', zIndex: 1, marginTop: 'auto', paddingTop: 40, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <CheckCircle size={14} color="rgba(255,255,255,0.5)" />
-                    <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>Free to get started · No credit card required</span>
+                    <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>Free to get started </span>
                 </div>
             </div>
 
@@ -152,7 +152,7 @@ const Signup = () => {
                             Create your account
                         </h2>
                         <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: 0 }}>
-                            Get started free — no credit card required.
+                            Get started free
                         </p>
                     </div>
 

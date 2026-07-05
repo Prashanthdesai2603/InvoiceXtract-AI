@@ -91,7 +91,8 @@ const Dashboard = () => {
                 if (otherCount > 0) topVendors.push(['Others', otherCount]);
 
                 const pieData = {
-                    labels: topVendors.map(([name]) => name),
+                    labels: topVendors.map(([name]) => name.length > 15 ? name.substring(0, 15) + '...' : name),
+                    fullLabels: topVendors.map(([name]) => name),
                     datasets: [{
                         data: topVendors.map(([, count]) => count),
                         backgroundColor: [
@@ -201,7 +202,7 @@ const Dashboard = () => {
                                 <ClipboardCheck size={24} className="text-info" />
                             </div>
                         </div>
-                        <div className="mt-3 small text-muted">100% processing rate</div>
+
                     </div>
                 </motion.div>
             </div>
@@ -247,7 +248,26 @@ const Dashboard = () => {
                                     options={{
                                         responsive: true,
                                         maintainAspectRatio: false,
-                                        plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 6 } } }
+                                        plugins: { 
+                                            legend: { 
+                                                position: 'bottom', 
+                                                labels: { 
+                                                    usePointStyle: true, 
+                                                    boxWidth: 8,
+                                                    font: { size: 11 },
+                                                    padding: 15
+                                                } 
+                                            },
+                                            tooltip: {
+                                                callbacks: {
+                                                    label: (context) => {
+                                                        const label = context.chart.data.fullLabels[context.dataIndex];
+                                                        const value = context.raw;
+                                                        return ` ${label}: ${value}`;
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }}
                                 />
                             ) : (
